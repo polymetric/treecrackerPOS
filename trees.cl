@@ -4,7 +4,7 @@
 int nextInt(long* seed, short bound);
 
 kernel void trees(global long *starts, global long *ends, global long *results) {
-    int id = get_global_id(0);
+	int id = get_global_id(0);
 
     int trees[TREE_COUNT][2] = {
             {   1,   1 },
@@ -36,48 +36,49 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
             { 'u', 'n', 'u', 'l', 'u', 'n', 'u', 'n', 'l', 'n', 'n', 'l', },
     };
 
-	char gennedLeaves[12];
+    int sureLeaves[TREE_COUNT] = {
+            9,
+            12,
+            12,
+            11,
+            5,
+            6,
+            8,
+    };
 
-	long treeRegionSeedStart = starts[id];
-    long treeRegionSeedEnd = ends[id];
+    char gennedLeaves[12];
 
-    for (long treeRegionSeed = treeRegionSeedStart; treeRegionSeed < treeRegionSeedEnd; treeRegionSeed++) {
-        long seed = treeRegionSeed;
+    long treeSeedStart = starts[id];
+    long treeSeedEnd = ends[id];
+
+    for (long treeSeed = treeSeedStart; treeSeed < treeSeedEnd; treeSeed++) {
+		long seed = treeSeed;
         int matches = 0;
-        for (int gennedTree = 0; gennedTree < TREE_GEN_AMT; gennedTree++) {
-            int baseX = nextInt(&seed, 16);
-            int baseZ = nextInt(&seed, 16);
-            int trunkHeight = nextInt(&seed, 3) + 4;
-            for (int leaf = 0; leaf < 12; leaf++) {
-                gennedLeaves[leaf] = nextInt(&seed, 2) != 0 ? 'l' : 'n';
-            }
-            for (int leaf = 0; leaf < 4; leaf++) {
-                nextInt(&seed, 2);
-            }
-            for (int targetTree = 0; targetTree < TREE_COUNT; targetTree++) {
-                if (baseX == trees[targetTree][0]
-                        && baseZ == trees[targetTree][1]
-                        && trunkHeight == treeHeights[targetTree]
-                ) {
-                    int leafMatches = 0;
-                    for (int leaf = 0; leaf < 12; leaf++) {
-                        if (treeLeaves[targetTree][leaf] == gennedLeaves[leaf]) {
-                            leafMatches++;
-                        }
+        int baseX = nextInt(&seed, 16);
+        int baseZ = nextInt(&seed, 16);
+        int trunkHeight = nextInt(&seed, 3) + 4;
+        for (int leaf = 0; leaf < 12; leaf++) {
+            gennedLeaves[leaf] = nextInt(&seed, 2) != 0 ? 'l' : 'n';
+        }
+        for (int targetTree = 0; targetTree < TREE_COUNT; targetTree++) {
+            if (baseX == trees[targetTree][0]
+                    && baseZ == trees[targetTree][1]
+                    && trunkHeight == treeHeights[targetTree]
+            ) {
+                int leafMatches = 0;
+                for (int leaf = 0; leaf < 12; leaf++) {
+                    if (treeLeaves[targetTree][leaf] == gennedLeaves[leaf]) {
+                        leafMatches++;
                     }
-                    if (leafMatches == 12) {
-                        matches++;
-                    }
+                }
+                if (leafMatches == sureLeaves[targetTree]) {
+                    printf("%lld %lld\n", targetTree, treeSeed);
                 }
             }
         }
-        if (matches >= 2) {
-            printf("found matches: %lld seed: %lld\n", matches, treeRegionSeed);
-        }
-        // prints seed every time the progress increases by 1/10000 of the seedspace
-        if (treeRegionSeed % 281474976L == 0) {
-            printf("current seed: %lld\n", treeRegionSeed);
-        }
+//        if (treeSeed % 281474976L == 0) {
+//            System.out.printf("current seed: %lld\n", treeSeed);
+//        }
     }
 }
 

@@ -14,8 +14,8 @@
 
 #define DEVICE_TYPE CL_DEVICE_TYPE_GPU
 
-#define SOURCE_FILENAME "test.cl"
-#define SOURCE_KERNELNAME "test"
+#define SOURCE_FILENAME "trees.cl"
+#define SOURCE_KERNELNAME "trees"
 
 // we don't subtract one from SEEDSPACE_MAX because
 // if we did it wouldn't be divisible by SEEDS_PER_KERNEL
@@ -25,8 +25,8 @@
 // is inclusive-exclusive like an idiomatic for loop
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LL << 48) // aka 2^48
-#define SEEDS_PER_KERNEL 1048576LL // 2^20 (approx 1 million)
-#define THREAD_BATCH_SIZE 512 // half the cores in a 960
+#define SEEDS_PER_KERNEL 65536 // 2^16 (approx 100k)
+#define THREAD_BATCH_SIZE 1024 // half the cores in a 960
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
 #define STARTS_LEN  (THREAD_BATCH_SIZE * sizeof(int64_t))
@@ -40,6 +40,12 @@ void checkcl(const char *fn, int err) {
         fflush(stderr);
         exit(-1);
     }
+}
+
+void delay(int ms) { 
+    clock_t start = clock(); 
+    while (clock() < start + ms) 
+		;
 }
 
 int main(int argc, char** argv) {
@@ -63,12 +69,66 @@ int main(int argc, char** argv) {
     fread(source_str, 1, source_size, file);
     fclose(file);
 
+	// cl variables
+	int err;
+
+    cl_uint num_platforms;
+    cl_platform_id platform;
+    cl_device_id device;
+    cl_context context;
+    cl_command_queue queue;
+
+    cl_program program;
+    cl_kernel kernel;
+
+    cl_mem d_starts;
+    cl_mem d_ends;
+    cl_mem d_results;
+    int64_t *starts = malloc(STARTS_LEN);
+    int64_t *ends = malloc(ENDS_LEN);
+    int64_t *results = malloc(RESULTS_LEN);
+
+    // cl boilerplate
+    // for now it just gets the first device of the first platform
+    checkcl("clGetPlatformIDs", clGetPlatformIDs(1, &platform, NULL));
+    checkcl("clGetDeviceIDs", clGetDeviceIDs(platform, DEVICE_TYPE, 1, &device, NULL));
+    context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
+    checkcl("clCreateContext", err);
+    queue = clCreateCommandQueueWithProperties(context, device, 0, &err);
+    checkcl("clCreateCommandQueue", err);
+
+    // compile kernel
+    program = clCreateProgramWithSource(context, 1, (const char **) &source_str, NULL, &err);
+    checkcl("clCreateProgramWithSource", err);
+    err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    if (err != CL_SUCCESS) {
+        size_t log_size;
+        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+        char *log = malloc(log_size);
+        clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
+        fprintf(stderr, "%s\n", log);
+        fflush(stdout);
+        fflush(stderr);
+        exit(-1);
+    }
+    kernel = clCreateKernel(program, SOURCE_KERNELNAME, &err);
+    checkcl("clCreateKernel", err);
+
+
+    // create buffers for kernel parameters
+    d_starts = clCreateBuffer(context, CL_MEM_READ_ONLY, STARTS_LEN, NULL, &err);
+    checkcl("starts create", err);
+    d_ends = clCreateBuffer(context, CL_MEM_READ_ONLY, ENDS_LEN, NULL, &err);
+    checkcl("ends create", err);
+
+    // create buffer for results
+    d_results = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_LEN, NULL, &err);
+    checkcl("results create", err);
+
+    printf("started kernels at %d\n", time(0));
+
     for (int64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
-    
         // generate kernel parameters
-        int64_t *starts = malloc(STARTS_LEN);
-        int64_t *ends = malloc(ENDS_LEN);
-        int64_t *results = malloc(RESULTS_LEN);
 
         if (SEEDSPACE_MAX % SEEDS_PER_KERNEL != 0) {
             fprintf(stderr, "seedspace_max (%lld) is not divisible by seeds per kernel (%lld)!", SEEDSPACE_MAX, SEEDS_PER_KERNEL);
@@ -82,59 +142,10 @@ int main(int argc, char** argv) {
         }
         fflush(stdout);
 
-        // cl variables
-        int err;
-
-        cl_uint num_platforms;
-        cl_platform_id platform;
-        cl_device_id device;
-        cl_context context;
-        cl_command_queue queue;
-
-        cl_program program;
-        cl_kernel kernel;
-
-        cl_mem d_starts;
-        cl_mem d_ends;
-        cl_mem d_results;
-        
-        // cl boilerplate
-        // for now it just gets the first device of the first platform
-        checkcl("clGetPlatformIDs", clGetPlatformIDs(1, &platform, NULL));
-        checkcl("clGetDeviceIDs", clGetDeviceIDs(platform, DEVICE_TYPE, 1, &device, NULL));
-        context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
-        checkcl("clCreateContext", err);
-        queue = clCreateCommandQueueWithProperties(context, device, 0, &err);
-        checkcl("clCreateCommandQueue", err);
-
-        // compile kernel
-        program = clCreateProgramWithSource(context, 1, (const char **) &source_str, NULL, &err);
-        checkcl("clCreateProgramWithSource", err);
-        err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
-        if (err != CL_SUCCESS) {
-            size_t log_size;
-            clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-            char *log = malloc(log_size);
-            clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
-            fprintf(stderr, "%s\n", log);
-            fflush(stdout);
-            fflush(stderr);
-            exit(-1);
-        }
-        kernel = clCreateKernel(program, SOURCE_KERNELNAME, &err);
-        checkcl("clCreateKernel", err);
-
-        // create buffers for kernel parameters
-        d_starts = clCreateBuffer(context, CL_MEM_READ_ONLY, STARTS_LEN, NULL, &err);
-        checkcl("starts create", err);
+		// write to kernel param buffers
         checkcl("starts write", clEnqueueWriteBuffer(queue, d_starts, CL_FALSE, 0, STARTS_LEN, starts, 0, NULL, NULL));
-        d_ends = clCreateBuffer(context, CL_MEM_READ_ONLY, ENDS_LEN, NULL, &err);
-        checkcl("ends create", err);
         checkcl("ends write", clEnqueueWriteBuffer(queue, d_ends, CL_FALSE, 0, ENDS_LEN, ends, 0, NULL, NULL));
 
-        // create buffer for results
-        d_results = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_LEN, NULL, &err);
-        checkcl("results create", err);
 
         // create the kernel itself
         checkcl("kernel arg set 0", clSetKernelArg(kernel, 0, sizeof(d_starts), &d_starts));
@@ -153,10 +164,10 @@ int main(int argc, char** argv) {
                 NULL                    // event
         ));
         
-        printf("started kernels at %d\n", time(0));
 
         checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
 
+		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish", clFinish(queue));
     }
     fflush(stdout);
