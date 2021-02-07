@@ -17,9 +17,16 @@
 #define SOURCE_FILENAME "test.cl"
 #define SOURCE_KERNELNAME "test"
 
-#define SEEDSPACE_MAX 64
-#define SEEDS_PER_KERNEL 4
-#define THREAD_BATCH_SIZE 4
+// we don't subtract one from SEEDSPACE_MAX because
+// if we did it wouldn't be divisible by SEEDS_PER_KERNEL
+// and i think technically it just wraps around to 0
+// so technically we're just checking seed 0 twice
+// except that probably doesn't happen because the range
+// is inclusive-exclusive like an idiomatic for loop
+// so maybe it's perfect lol
+#define SEEDSPACE_MAX (1LL << 48) // aka 2^48
+#define SEEDS_PER_KERNEL 1048576LL // 2^20 (approx 1 million)
+#define THREAD_BATCH_SIZE 512 // half the cores in a 960
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
 #define STARTS_LEN  (THREAD_BATCH_SIZE * sizeof(int64_t))
@@ -57,16 +64,15 @@ int main(int argc, char** argv) {
     fclose(file);
 
     for (int64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
-    
         // generate kernel parameters
         int64_t *starts = malloc(STARTS_LEN);
         int64_t *ends = malloc(ENDS_LEN);
         int64_t *results = malloc(RESULTS_LEN);
 
-//        if (SEEDSPACE_MAX % THREAD_COUNT != 0) {
-//            fprintf(stderr, "seedspace_max (%lld) is not divisible by thread count (%lld)!", SEEDSPACE_MAX, THREAD_COUNT);
-//            exit(-1);
-//        }
+        if (SEEDSPACE_MAX % SEEDS_PER_KERNEL != 0) {
+            fprintf(stderr, "seedspace_max (%lld) is not divisible by seeds per kernel (%lld)!", SEEDSPACE_MAX, SEEDS_PER_KERNEL);
+            exit(-1);
+        }
         for (int64_t kernel = kernel_offset; kernel < kernel_offset + THREAD_BATCH_SIZE; kernel++) {
             int64_t rel_kernel = kernel - kernel_offset;
             starts[rel_kernel] = kernel * SEEDS_PER_KERNEL;
