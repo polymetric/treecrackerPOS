@@ -26,7 +26,7 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LL << 48) // aka 2^48
 #define SEEDS_PER_KERNEL 65536 // 2^16 (approx 100k)
-#define THREAD_BATCH_SIZE 1024 // half the cores in a 960
+#define THREAD_BATCH_SIZE 2048
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
 #define STARTS_LEN  (THREAD_BATCH_SIZE * sizeof(int64_t))
