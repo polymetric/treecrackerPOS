@@ -16,6 +16,18 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
             {   0,  12 },
     };
 
+    
+
+    char treeTypes[TREE_COUNT] = {
+            'o',
+            'o',
+            'o',
+            'b',
+            'o',
+            'b',
+            'o',
+    };
+
     int treeHeights[TREE_COUNT] = {
             5,
             4,
@@ -53,32 +65,39 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
 
     for (long treeSeed = treeSeedStart; treeSeed < treeSeedEnd; treeSeed++) {
 		long seed = treeSeed;
-        int matches = 0;
         int baseX = nextInt(&seed, 16);
         int baseZ = nextInt(&seed, 16);
-        int trunkHeight = nextInt(&seed, 3) + 4;
-        for (int leaf = 0; leaf < 12; leaf++) {
-            gennedLeaves[leaf] = nextInt(&seed, 2) != 0 ? 'l' : 'n';
+        char type = 'o';
+        if (nextInt(&seed, 5) == 0) {
+            type = 'b';
+        } else if (nextInt(&seed, 10) == 0) {
+            type = 'B';
         }
-        for (int targetTree = 0; targetTree < TREE_COUNT; targetTree++) {
-            if (baseX == trees[targetTree][0]
-                    && baseZ == trees[targetTree][1]
-                    && trunkHeight == treeHeights[targetTree]
-            ) {
-                int leafMatches = 0;
-                for (int leaf = 0; leaf < 12; leaf++) {
-                    if (treeLeaves[targetTree][leaf] == gennedLeaves[leaf]) {
-                        leafMatches++;
-                    }
-                }
-                if (leafMatches == sureLeaves[targetTree]) {
-                    printf("%lld %lld\n", targetTree, treeSeed);
-                }
-            }
-        }
-//        if (treeSeed % 281474976L == 0) {
-//            System.out.printf("current seed: %lld\n", treeSeed);
-//        }
+		if (type != 'B') {
+        	int trunkHeight = nextInt(&seed, 3) + 4;
+        	for (int leaf = 0; leaf < 12; leaf++) {
+        	    gennedLeaves[leaf] = nextInt(&seed, 2) != 0 ? 'l' : 'n';
+        	}
+        	for (int targetTree = 0; targetTree < TREE_COUNT; targetTree++) {
+        	    if (baseX == trees[targetTree][0]
+        	            && baseZ == trees[targetTree][1]
+        	            && trunkHeight == treeHeights[targetTree]
+						&& type == treeTypes[targetTree]
+        	    ) {
+        	        int leafMatches = 0;
+        	        for (int leaf = 0; leaf < 12; leaf++) {
+        	            if (treeLeaves[targetTree][leaf] == gennedLeaves[leaf]) {
+        	                leafMatches++;
+        	            }
+        	        }
+        	        if (leafMatches == sureLeaves[targetTree]) {
+        	            printf("%lld %lld\n", targetTree, treeSeed);
+        	        }
+        	    }
+        	}
+		} else {
+			
+		}
     }
 }
 
