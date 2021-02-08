@@ -26,7 +26,8 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LL << 48) // aka 2^48
 #define SEEDS_PER_KERNEL 65536 // 2^16 (approx 100k)
-#define THREAD_BATCH_SIZE 2048
+#define THREAD_BATCH_SIZE 1024
+#define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
 #define STARTS_LEN  (THREAD_BATCH_SIZE * sizeof(int64_t))
@@ -152,13 +153,14 @@ int main(int argc, char** argv) {
         checkcl("kernel arg set 1", clSetKernelArg(kernel, 1, sizeof(d_ends), &d_ends));
         checkcl("kernel arg set 2", clSetKernelArg(kernel, 2, sizeof(d_results), &d_results));
         size_t global_dimensions = THREAD_BATCH_SIZE;
+        size_t block_size = BLOCK_SIZE;
         checkcl("clEnqueueNDRangeKernel", clEnqueueNDRangeKernel(
                 queue,                  // command queue
                 kernel,                 // kernel
                 1,                      // work dimensions
                 NULL,                   // global work offset
                 &global_dimensions,     // global work size
-                NULL,                   // local work size (NULL = auto)
+                &block_size,            // local work size (NULL = auto)
                 0,                      // number of events in wait list
                 NULL,                   // event wait list
                 NULL                    // event

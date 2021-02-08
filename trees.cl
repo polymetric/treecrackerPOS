@@ -62,6 +62,7 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
     long treeSeedStart = starts[id];
     long treeSeedEnd = ends[id];
 
+    #pragma unroll
     for (long treeSeed = treeSeedStart; treeSeed < treeSeedEnd; treeSeed++) {
 		long seed = treeSeed;
         int baseX = nextInt(&seed, 16);
@@ -79,6 +80,7 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
     	        && trunkHeight == TARGET_HEIGHT
     	) {
     	    int leafMatches = 0;
+            #pragma unroll
     	    for (int leaf = 0; leaf < 12; leaf++) {
     	        if (treeLeaves[leaf] == nextInt(&seed, 2) != 0 ? 'l' : 'n') {
     	            leafMatches++;
