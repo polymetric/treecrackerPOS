@@ -4,9 +4,9 @@
 #define TARGET_HEIGHT 4
 #define SURE_LEAVES 12
 
-int nextInt(long* seed, short bound);
+int nextInt(ulong* seed, uchar bound);
 
-kernel void trees(global long *starts, global long *ends, global long *results) {
+kernel void trees(global ulong *starts, global ulong *ends, global ulong *results) {
 	int id = get_global_id(0);
 
 //    int trees[TREE_COUNT][2] = {
@@ -59,13 +59,14 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
 //            8,
 //    };
 
-    long treeSeedStart = starts[id];
-    long treeSeedEnd = ends[id];
+    ulong treeSeedStart = starts[id];
+    ulong treeSeedEnd = ends[id];
+    ulong seedsFound = 0;
 
     #pragma unroll
-    for (long treeSeed = treeSeedStart; treeSeed < treeSeedEnd; treeSeed++) {
-		long seed = treeSeed;
-        uchar baseX = nextInt(&seed, 16);
+    for (ulong treeSeed = treeSeedStart; treeSeed < treeSeedEnd; treeSeed++) {
+		ulong initialSeed = treeSeed | ((ulong) TARGET_X << 44);
+        ulong seed = initialSeed;
         uchar baseZ = nextInt(&seed, 16);
         char type = 'o';
         if (nextInt(&seed, 5) == 0) {
@@ -82,18 +83,19 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
     	    }
     	}
     	if (type == TARGET_TYPE
-				&& baseX == TARGET_X
     	        && baseZ == TARGET_Z
     	        && trunkHeight == TARGET_HEIGHT
                 && leafMatches == SURE_LEAVES
-                && nextInt(&seed, 100000000000000) == 0
+//                && seed % 10000000 == 0
     	) {
-    	    printf("%lld\n", treeSeed);
+//    	    printf("%lld\n", initialSeed);
+            results[id + seedsFound] = treeSeed;
+//            results[id + seedsFound] = initialSeed;
     	}
     }
 }
 
-int nextInt(long* seed, short bound) {
+int nextInt(ulong* seed, uchar bound) {
 	int bits, value;
 	do {
 		*seed = (*seed * 0x5DEECE66DL + 0xBL) & ((1L << 48) - 1);

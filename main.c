@@ -24,15 +24,15 @@
 // except that probably doesn't happen because the range
 // is inclusive-exclusive like an idiomatic for loop
 // so maybe it's perfect lol
-#define SEEDSPACE_MAX (1LL << 48) // aka 2^48
-#define SEEDS_PER_KERNEL 65536 // 2^16 (approx 100k)
+#define SEEDSPACE_MAX (1LL << 44) // aka 2^48
+#define SEEDS_PER_KERNEL 65536
 #define THREAD_BATCH_SIZE 1024
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
 #define STARTS_LEN  (THREAD_BATCH_SIZE * sizeof(int64_t))
 #define ENDS_LEN    (THREAD_BATCH_SIZE * sizeof(int64_t))
-#define RESULTS_LEN (THREAD_BATCH_SIZE * sizeof(int64_t))
+#define RESULTS_LEN (THREAD_BATCH_SIZE * sizeof(int64_t) * SEEDS_PER_KERNEL)
 
 void checkcl(const char *fn, int err) {
     if (err != CL_SUCCESS) {
@@ -50,25 +50,25 @@ void delay(int ms) {
 }
 
 int main(int argc, char** argv) {
-    // file variables
-    FILE *file;
+    // source file variables
+    FILE *source_file;
     char *source_str;
     size_t source_size;
 
     // load kernel
-    file = fopen(SOURCE_FILENAME, "r");
-    if (file == NULL) {
+    source_file = fopen(SOURCE_FILENAME, "r");
+    if (source_file == NULL) {
         perror("file error");
         exit(-1);
     }
     // get file size
-    fseek(file, 0, SEEK_END);
-    source_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    fseek(source_file, 0, SEEK_END);
+    source_size = ftell(source_file);
+    fseek(source_file, 0, SEEK_SET);
     source_str = malloc(source_size + 1);
     source_str[source_size] = '\0';
-    fread(source_str, 1, source_size, file);
-    fclose(file);
+    fread(source_str, 1, source_size, source_file);
+    fclose(source_file);
 
 	// cl variables
 	int err;
@@ -88,6 +88,10 @@ int main(int argc, char** argv) {
     int64_t *starts = malloc(STARTS_LEN);
     int64_t *ends = malloc(ENDS_LEN);
     int64_t *results = malloc(RESULTS_LEN);
+
+    FILE *results_file;
+
+    results_file = fopen("treeseeds.txt", "wb");
 
     // cl boilerplate
     // for now it just gets the first device of the first platform
@@ -147,6 +151,9 @@ int main(int argc, char** argv) {
         checkcl("starts write", clEnqueueWriteBuffer(queue, d_starts, CL_FALSE, 0, STARTS_LEN, starts, 0, NULL, NULL));
         checkcl("ends write", clEnqueueWriteBuffer(queue, d_ends, CL_FALSE, 0, ENDS_LEN, ends, 0, NULL, NULL));
 
+        // zero out results
+        memset(results, 0xFF, RESULTS_LEN);
+        checkcl("ends write", clEnqueueWriteBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
 
         // create the kernel itself
         checkcl("kernel arg set 0", clSetKernelArg(kernel, 0, sizeof(d_starts), &d_starts));
@@ -171,7 +178,16 @@ int main(int argc, char** argv) {
 
 		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish", clFinish(queue));
+
+        for (int i = 0; i < THREAD_BATCH_SIZE * SEEDS_PER_KERNEL; i++) {
+            if (results[i] != (int64_t) -1) {
+                //printf("%lld\n", results[i]);
+                int64_t result = results[i];
+                fwrite(&result, sizeof(int64_t), 1, results_file);
+            }
+        }
     }
+
     fflush(stdout);
     exit(0);
 } 
