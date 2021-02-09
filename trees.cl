@@ -65,30 +65,30 @@ kernel void trees(global long *starts, global long *ends, global long *results) 
     #pragma unroll
     for (long treeSeed = treeSeedStart; treeSeed < treeSeedEnd; treeSeed++) {
 		long seed = treeSeed;
-        int baseX = nextInt(&seed, 16);
-        int baseZ = nextInt(&seed, 16);
+        uchar baseX = nextInt(&seed, 16);
+        uchar baseZ = nextInt(&seed, 16);
         char type = 'o';
         if (nextInt(&seed, 5) == 0) {
             type = 'b';
         } else if (nextInt(&seed, 10) == 0) {
             type = 'B';
         }
-    	int trunkHeight = nextInt(&seed, 3) + 4;
+    	uchar trunkHeight = nextInt(&seed, 3) + 4;
+    	uchar leafMatches = 0;
+        #pragma unroll
+    	for (uchar leaf = 0; leaf < 12; leaf++) {
+    	    if (treeLeaves[leaf] == nextInt(&seed, 2) != 0 ? 'l' : 'n') {
+    	        leafMatches++;
+    	    }
+    	}
     	if (type == TARGET_TYPE
 				&& baseX == TARGET_X
     	        && baseZ == TARGET_Z
     	        && trunkHeight == TARGET_HEIGHT
+                && leafMatches == SURE_LEAVES
+                && nextInt(&seed, 100000000000000) == 0
     	) {
-    	    int leafMatches = 0;
-            #pragma unroll
-    	    for (int leaf = 0; leaf < 12; leaf++) {
-    	        if (treeLeaves[leaf] == nextInt(&seed, 2) != 0 ? 'l' : 'n') {
-    	            leafMatches++;
-    	        }
-    	    }
-    	    if (leafMatches == SURE_LEAVES) {
-    	        printf("%lld\n", treeSeed);
-    	    }
+    	    printf("%lld\n", treeSeed);
     	}
     }
 }
