@@ -30,7 +30,7 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
 #define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1024
+#define THREAD_BATCH_SIZE 1920
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
