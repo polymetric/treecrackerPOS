@@ -131,6 +131,7 @@ int main(int argc, char** argv) {
     checkcl("results count create", err);
 
     //uint64_t time_start = nanos();
+    printf("started at ctime: %llu", time(0));
 
     for (uint64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
         // generate kernel parameters
