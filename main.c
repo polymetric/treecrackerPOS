@@ -194,14 +194,31 @@ int main(int argc, char** argv) {
                 NULL                    // event
         ));
         
-        checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
-        checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results_count, CL_FALSE, 0, RESULTS_COUNT_LEN, results_count, 0, NULL, NULL));
-
 		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish", clFinish(queue));
 
         double kernel_time = (nanos() - time_start) / 1e9;
         printf("kernel batch took %.6f\n", kernel_time);
+        time_start = nanos();
+
+        checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results_count, CL_FALSE, 0, RESULTS_COUNT_LEN, results_count, 0, NULL, NULL));
+
+		checkcl("clFlush", clFlush(queue));
+        checkcl("clFinish", clFinish(queue));
+
+        size_t total_results = 0;
+        for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
+            size_t offset = i * SEEDS_PER_KERNEL * sizeof(uint64_t);
+            size_t res_ct = results_count[i] * sizeof(uint64_t);
+            checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, offset, res_ct, results, 0, NULL, NULL));
+            total_results += results_count[i];
+        }
+        printf("read %d results\n", total_results);
+
+		checkcl("clFlush", clFlush(queue));
+        checkcl("clFinish", clFinish(queue));
+
+        printf("mem read took %.6f\n", (nanos() - time_start) / 1e9);
         time_start = nanos();
 
         for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
@@ -216,7 +233,7 @@ int main(int argc, char** argv) {
 
         printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
         printf("running at %.3f sps\n", (SEEDS_PER_KERNEL * THREAD_BATCH_SIZE) / kernel_time);
-        printf("progress: %15llu/%15llu, %6.2f%%\n", ends[THREAD_BATCH_SIZE-1], SEEDSPACE_MAX, (double) ends[THREAD_BATCH_SIZE-1] / SEEDSPACE_MAX) * 100;
+        printf("progress: %15llu/%15llu, %6.2f%%\n", ends[THREAD_BATCH_SIZE-1], SEEDSPACE_MAX, (double) ends[THREAD_BATCH_SIZE-1] / SEEDSPACE_MAX * 100);
 
         fflush(stdout);
 
