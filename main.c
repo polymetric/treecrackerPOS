@@ -21,6 +21,9 @@
 #define SOURCE_FILENAME "trees.cl"
 #define SOURCE_KERNELNAME "trees"
 
+#define RESULTS_FILE_PATH "treeseeds.txt"
+#define PROGRESS_FILE_PATH "progress"
+
 // we don't subtract one from SEEDSPACE_MAX because
 // if we did it wouldn't be divisible by SEEDS_PER_KERNEL
 // and i think technically it just wraps around to 0
@@ -30,7 +33,7 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
 #define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1920
+#define THREAD_BATCH_SIZE 1024
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
@@ -102,14 +105,23 @@ int main(int argc, char** argv) {
     FILE *results_file;
     FILE *progress_file;
 
-    progress_file = fopen("progress", "rb");
+    progress_file = fopen(PROGRESS_FILE_PATH, "rb");
+    int restored = 0;
     if (progress_file != NULL) {
+        restored = 1;
         fread(&kernel_offset, sizeof(uint64_t), 1, progress_file);
         fclose(progress_file);
         remove("progress");
     }
-
-    results_file = fopen("treeseeds.txt", "wb");
+    
+    if (restored) {
+        results_file = fopen(RESULTS_FILE_PATH, "ab");
+    } else if (fopen(RESULTS_FILE_PATH, "r") != NULL) {
+        printf("existing results file found. please delete or rename it to continue\n");
+        exit(1);
+    } else {
+        results_file = fopen(RESULTS_FILE_PATH, "wb");
+    }
 
     // cl boilerplate
     // for now it just gets the first device of the first platform
@@ -239,7 +251,7 @@ int main(int argc, char** argv) {
 
         if (interrupted) {
             printf("interrupted - saving progress\n");
-            progress_file = fopen("progress", "wb");
+            progress_file = fopen(PROGRESS_FILE_PATH, "wb");
             fwrite(&kernel_offset, sizeof(uint64_t), 1, progress_file);
             fflush(stdout);
             fflush(progress_file);
@@ -249,6 +261,10 @@ int main(int argc, char** argv) {
             exit(0);
         }
     }
+    if (progress_file != NULL) {
+        fclose(progress_file);
+    }
+    remove(PROGRESS_FILE_PATH);
     fflush(results_file);
     fclose(results_file);
 
