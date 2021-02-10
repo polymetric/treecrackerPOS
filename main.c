@@ -33,7 +33,7 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
 #define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1024
+#define THREAD_BATCH_SIZE 1920
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
@@ -207,13 +207,13 @@ int main(int argc, char** argv) {
         ));
         
 		checkcl("clFlush", clFlush(queue));
-        checkcl("clFinish", clFinish(queue));
+        checkcl("clFinish kernel queue", clFinish(queue));
 
         double kernel_time = (nanos() - time_start) / 1e9;
         printf("kernel batch took %.6f\n", kernel_time);
         time_start = nanos();
 
-        checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results_count, CL_FALSE, 0, RESULTS_COUNT_LEN, results_count, 0, NULL, NULL));
+        checkcl("clEnqueueReadBuffer read results count queue", clEnqueueReadBuffer(queue, d_results_count, CL_FALSE, 0, RESULTS_COUNT_LEN, results_count, 0, NULL, NULL));
 
 		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish", clFinish(queue));
@@ -222,13 +222,14 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
             size_t offset = i * SEEDS_PER_KERNEL * sizeof(uint64_t);
             size_t res_ct = results_count[i] * sizeof(uint64_t);
+//            printf("reading results from offset %15llu and length %15llu\n", offset, res_ct);
             checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, offset, res_ct, results, 0, NULL, NULL));
             total_results += results_count[i];
         }
         printf("read %d results\n", total_results);
 
 		checkcl("clFlush", clFlush(queue));
-        checkcl("clFinish", clFinish(queue));
+        checkcl("clFinish read results", clFinish(queue));
 
         printf("mem read took %.6f\n", (nanos() - time_start) / 1e9);
         time_start = nanos();
