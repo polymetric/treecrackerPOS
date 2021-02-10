@@ -23,6 +23,7 @@ kernel void trees(global ulong *starts, global ulong *ends, global ulong *result
         if ((((baseSeed * 233752471717045LU +  11718085204285LU) >> 17) % 10) ==  0) continue;
         if ((((baseSeed *  55986898099985LU +  49720483695876LU) >> 17) %  3) !=  0) continue;
         
+        //printf("%15llu\n", treeSeed);
         results[id * SEEDS_PER_KERNEL + seedsFound] = baseSeed;
         seedsFound += 1;
     }

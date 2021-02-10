@@ -31,9 +31,9 @@
 // except that probably doesn't happen because the range
 // is inclusive-exclusive like an idiomatic for loop
 // so maybe it's perfect lol
-#define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
+#define SEEDSPACE_MAX (1LLU << 44)
 #define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1920
+#define THREAD_BATCH_SIZE 1024
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
@@ -219,13 +219,17 @@ int main(int argc, char** argv) {
         checkcl("clFinish", clFinish(queue));
 
         size_t total_results = 0;
+        uint64_t *results_offset = results;
         for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
             size_t offset = i * SEEDS_PER_KERNEL * sizeof(uint64_t);
             size_t res_ct = results_count[i] * sizeof(uint64_t);
-//            printf("reading results from offset %15llu and length %15llu\n", offset, res_ct);
-            checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, offset, res_ct, results, 0, NULL, NULL));
+            checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_TRUE, offset, res_ct, results_offset, 0, NULL, NULL));
+            //printf("read result %15llu from offset %15llu and length %15llu\n", results[i], offset, res_ct);
+            results_offset += results_count[i];
+            //printf("writing to results array at index %15llu\n", res_ct);
             total_results += results_count[i];
         }
+            
         printf("read %d results\n", total_results);
 
 		checkcl("clFlush", clFlush(queue));
@@ -234,14 +238,11 @@ int main(int argc, char** argv) {
         printf("mem read took %.6f\n", (nanos() - time_start) / 1e9);
         time_start = nanos();
 
-        for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
-            for (size_t j = 0; j < results_count[i]; j++) {
-                if (results[i] != (uint64_t) -1) {
-                    //printf("%llu\n", results[i]);
-                    uint64_t result = results[i];
-                    fwrite(&result, sizeof(uint64_t), 1, results_file);
-                }
-            }
+        for (size_t i = 0; i < total_results; i++) {
+            //printf("%15llu\n", results[i]);
+            //printf("%15llu %15llu\n", i, results[i]);
+            uint64_t result = results[i];
+            fwrite(&result, sizeof(uint64_t), 1, results_file);
         }
 
         printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
