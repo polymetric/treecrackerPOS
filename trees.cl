@@ -1,12 +1,6 @@
 #define TARGET_X 2
-#define TARGET_Z 8
-#define TARGET_TYPE 'o'
-#define TARGET_HEIGHT 4
-#define SURE_LEAVES 12
 
-int nextInt(ulong* seed, uchar bound);
-
-kernel void trees(global ulong *starts, global ulong *ends, global ulong *results) {
+kernel void trees(global ulong *starts, global ulong *ends, global ulong *results, global size_t *results_count) {
 	int id = get_global_id(0);
 
     ulong treeSeedStart = starts[id];
@@ -35,8 +29,11 @@ kernel void trees(global ulong *starts, global ulong *ends, global ulong *result
         if ((((baseSeed * 120681609298497LU +  14307911880080LU) >> 47) &  1) !=  1) continue;
         
 //        printf("%lld\n", baseSeed);
+//        printf("%lld\n", treeSeed);
         results[id + seedsFound] = treeSeed;
 //        results[id + seedsFound] = baseSeed;
         seedsFound += 1;
     }
+
+    results_count[id] = seedsFound;
 }

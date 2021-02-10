@@ -12,6 +12,8 @@
 #include <CL/cl.h>
 #endif
 
+#include "nanos.h"
+
 #define DEVICE_TYPE CL_DEVICE_TYPE_GPU
 
 #define SOURCE_FILENAME "trees.cl"
@@ -24,15 +26,16 @@
 // except that probably doesn't happen because the range
 // is inclusive-exclusive like an idiomatic for loop
 // so maybe it's perfect lol
-#define SEEDSPACE_MAX (1LL << 44) // aka 2^48
-#define SEEDS_PER_KERNEL (1 << 17)
+#define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
+#define SEEDS_PER_KERNEL (1 << 18)
 #define THREAD_BATCH_SIZE 1024
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
-#define STARTS_LEN  (THREAD_BATCH_SIZE * sizeof(int64_t))
-#define ENDS_LEN    (THREAD_BATCH_SIZE * sizeof(int64_t))
-#define RESULTS_LEN (THREAD_BATCH_SIZE * sizeof(int64_t) * SEEDS_PER_KERNEL)
+#define STARTS_LEN        (THREAD_BATCH_SIZE * sizeof(uint64_t))
+#define ENDS_LEN          (THREAD_BATCH_SIZE * sizeof(uint64_t))
+#define RESULTS_LEN       (THREAD_BATCH_SIZE * sizeof(uint64_t) * SEEDS_PER_KERNEL)
+#define RESULTS_COUNT_LEN (THREAD_BATCH_SIZE * sizeof(size_t))
 
 void checkcl(const char *fn, int err) {
     if (err != CL_SUCCESS) {
@@ -41,12 +44,6 @@ void checkcl(const char *fn, int err) {
         fflush(stderr);
         exit(-1);
     }
-}
-
-void delay(int ms) { 
-    clock_t start = clock(); 
-    while (clock() < start + ms) 
-		;
 }
 
 int main(int argc, char** argv) {
@@ -85,9 +82,11 @@ int main(int argc, char** argv) {
     cl_mem d_starts;
     cl_mem d_ends;
     cl_mem d_results;
-    int64_t *starts = malloc(STARTS_LEN);
-    int64_t *ends = malloc(ENDS_LEN);
-    int64_t *results = malloc(RESULTS_LEN);
+    cl_mem d_results_count;
+    uint64_t *starts = malloc(STARTS_LEN);
+    uint64_t *ends = malloc(ENDS_LEN);
+    uint64_t *results = malloc(RESULTS_LEN);
+    size_t *results_count = malloc(RESULTS_COUNT_LEN);
 
     FILE *results_file;
 
@@ -128,36 +127,39 @@ int main(int argc, char** argv) {
     // create buffer for results
     d_results = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_LEN, NULL, &err);
     checkcl("results create", err);
+    d_results_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_COUNT_LEN, NULL, &err);
+    checkcl("results count create", err);
 
-    printf("started kernels at %d\n", time(0));
+    //uint64_t time_start = nanos();
 
-    for (int64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
+    for (uint64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
         // generate kernel parameters
+        uint64_t time_start = nanos();
 
         if (SEEDSPACE_MAX % SEEDS_PER_KERNEL != 0) {
-            fprintf(stderr, "seedspace_max (%lld) is not divisible by seeds per kernel (%lld)!", SEEDSPACE_MAX, SEEDS_PER_KERNEL);
+            fprintf(stderr, "seedspace_max (%llu) is not divisible by seeds per kernel (%llu)!", SEEDSPACE_MAX, SEEDS_PER_KERNEL);
             exit(-1);
         }
-        for (int64_t kernel = kernel_offset; kernel < kernel_offset + THREAD_BATCH_SIZE; kernel++) {
-            int64_t rel_kernel = kernel - kernel_offset;
+        for (uint64_t kernel = kernel_offset; kernel < kernel_offset + THREAD_BATCH_SIZE; kernel++) {
+            uint64_t rel_kernel = kernel - kernel_offset;
             starts[rel_kernel] = kernel * SEEDS_PER_KERNEL;
             ends[rel_kernel] = (kernel + 1) * SEEDS_PER_KERNEL - 1;
             //printf("[HOST] spawned thread id %6d with start %12d and end %12d\n", kernel, starts[rel_kernel], ends[rel_kernel]);
         }
+
+        printf("work dist took %.6f\n", (nanos() - time_start) / 1e9);
         fflush(stdout);
+        time_start = nanos();
 
 		// write to kernel param buffers
         checkcl("starts write", clEnqueueWriteBuffer(queue, d_starts, CL_FALSE, 0, STARTS_LEN, starts, 0, NULL, NULL));
         checkcl("ends write", clEnqueueWriteBuffer(queue, d_ends, CL_FALSE, 0, ENDS_LEN, ends, 0, NULL, NULL));
 
-        // zero out results
-        memset(results, 0xFF, RESULTS_LEN);
-        checkcl("results write", clEnqueueWriteBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
-
         // create the kernel itself
         checkcl("kernel arg set 0", clSetKernelArg(kernel, 0, sizeof(d_starts), &d_starts));
         checkcl("kernel arg set 1", clSetKernelArg(kernel, 1, sizeof(d_ends), &d_ends));
         checkcl("kernel arg set 2", clSetKernelArg(kernel, 2, sizeof(d_results), &d_results));
+        checkcl("kernel arg set 3", clSetKernelArg(kernel, 3, sizeof(d_results_count), &d_results_count));
         size_t global_dimensions = THREAD_BATCH_SIZE;
         size_t block_size = BLOCK_SIZE;
         checkcl("clEnqueueNDRangeKernel", clEnqueueNDRangeKernel(
@@ -173,18 +175,31 @@ int main(int argc, char** argv) {
         ));
         
         checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
+        checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results_count, CL_FALSE, 0, RESULTS_COUNT_LEN, results_count, 0, NULL, NULL));
 
 		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish", clFinish(queue));
 
-        for (int i = 0; i < THREAD_BATCH_SIZE * SEEDS_PER_KERNEL; i++) {
-            if (results[i] != (int64_t) -1) {
-                //printf("%lld\n", results[i]);
-                int64_t result = results[i];
-                fwrite(&result, sizeof(int64_t), 1, results_file);
+        double kernel_time = (nanos() - time_start) / 1e9;
+        printf("kernel batch took %.6f\n", kernel_time);
+        time_start = nanos();
+
+        for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
+            for (size_t j = 0; j < results_count[i]; j++) {
+                if (results[i] != (uint64_t) -1) {
+                    //printf("%llu\n", results[i]);
+                    uint64_t result = results[i];
+                    fwrite(&result, sizeof(uint64_t), 1, results_file);
+                }
             }
         }
+
+        printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
+        printf("running at %.3f sps\n", (SEEDS_PER_KERNEL * THREAD_BATCH_SIZE) / kernel_time);
+        printf("progress: %15llu/%15llu, %6.2f%%\n", ends[THREAD_BATCH_SIZE-1], SEEDSPACE_MAX, (double) ends[THREAD_BATCH_SIZE-1] / SEEDSPACE_MAX);
+        fflush(stdout);
     }
+    fclose(results_file);
 
     fflush(stdout);
     exit(0);
