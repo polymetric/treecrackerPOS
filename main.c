@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
             size_t offset = i * SEEDS_PER_KERNEL * sizeof(uint64_t);
             size_t res_ct = results_count[i] * sizeof(uint64_t);
-            checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_TRUE, offset, res_ct, results_offset, 0, NULL, NULL));
+            checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, offset, res_ct, results_offset, 0, NULL, NULL));
             //printf("read result %15llu from offset %15llu and length %15llu\n", results[i], offset, res_ct);
             results_offset += results_count[i];
             //printf("writing to results array at index %15llu\n", res_ct);
