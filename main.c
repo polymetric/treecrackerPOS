@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <signal.h>
 #include <time.h>
 
 #define CL_TARGET_OPENCL_VERSION 220
@@ -29,7 +30,7 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
 #define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1920
+#define THREAD_BATCH_SIZE 1024
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
@@ -47,11 +48,19 @@ void checkcl(const char *fn, int err) {
     }
 }
 
+volatile int interrupted = 0;
+
+void interrupt(int signal) {
+    interrupted = 1;
+}
+
 int main(int argc, char** argv) {
     // source file variables
     FILE *source_file;
     char *source_str;
     size_t source_size;
+
+    signal(SIGINT, interrupt);
 
     // load kernel
     source_file = fopen(SOURCE_FILENAME, "r");
@@ -88,8 +97,17 @@ int main(int argc, char** argv) {
     uint64_t *ends = malloc(ENDS_LEN);
     uint64_t *results = malloc(RESULTS_LEN);
     size_t *results_count = malloc(RESULTS_COUNT_LEN);
+    uint64_t kernel_offset = 0;
 
     FILE *results_file;
+    FILE *progress_file;
+
+    progress_file = fopen("progress", "rb");
+    if (progress_file != NULL) {
+        fread(&kernel_offset, sizeof(uint64_t), 1, progress_file);
+        fclose(progress_file);
+        remove("progress");
+    }
 
     results_file = fopen("treeseeds.txt", "wb");
 
@@ -134,7 +152,7 @@ int main(int argc, char** argv) {
     //uint64_t time_start = nanos();
     printf("started at ctime: %llu\n", time(0));
 
-    for (uint64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
+    for (; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
         // generate kernel parameters
         uint64_t time_start = nanos();
 
@@ -198,9 +216,23 @@ int main(int argc, char** argv) {
 
         printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
         printf("running at %.3f sps\n", (SEEDS_PER_KERNEL * THREAD_BATCH_SIZE) / kernel_time);
-        printf("progress: %15llu/%15llu, %6.2f%%\n", ends[THREAD_BATCH_SIZE-1], SEEDSPACE_MAX, (double) ends[THREAD_BATCH_SIZE-1] / SEEDSPACE_MAX);
+        printf("progress: %15llu/%15llu, %6.2f%%\n", ends[THREAD_BATCH_SIZE-1], SEEDSPACE_MAX, (double) ends[THREAD_BATCH_SIZE-1] / SEEDSPACE_MAX) * 100;
+
         fflush(stdout);
+
+        if (interrupted) {
+            printf("interrupted - saving progress\n");
+            progress_file = fopen("progress", "wb");
+            fwrite(&kernel_offset, sizeof(uint64_t), 1, progress_file);
+            fflush(stdout);
+            fflush(progress_file);
+            fclose(progress_file);
+            fflush(results_file);
+            fclose(results_file);
+            exit(0);
+        }
     }
+    fflush(results_file);
     fclose(results_file);
 
     fflush(stdout);

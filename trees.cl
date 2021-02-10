@@ -28,10 +28,7 @@ kernel void trees(global ulong *starts, global ulong *ends, global ulong *result
         if ((((baseSeed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  0) continue;
         if ((((baseSeed * 120681609298497LU +  14307911880080LU) >> 47) &  1) !=  1) continue;
         
-//        printf("%lld\n", baseSeed);
-//        printf("%lld\n", treeSeed);
-        results[id + seedsFound] = treeSeed;
-//        results[id + seedsFound] = baseSeed;
+        results[id + seedsFound] = baseSeed;
         seedsFound += 1;
     }
 
