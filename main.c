@@ -25,7 +25,7 @@
 // is inclusive-exclusive like an idiomatic for loop
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LL << 44) // aka 2^48
-#define SEEDS_PER_KERNEL 65536
+#define SEEDS_PER_KERNEL (1 << 17)
 #define THREAD_BATCH_SIZE 1024
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
@@ -119,7 +119,6 @@ int main(int argc, char** argv) {
     kernel = clCreateKernel(program, SOURCE_KERNELNAME, &err);
     checkcl("clCreateKernel", err);
 
-
     // create buffers for kernel parameters
     d_starts = clCreateBuffer(context, CL_MEM_READ_ONLY, STARTS_LEN, NULL, &err);
     checkcl("starts create", err);
@@ -153,7 +152,7 @@ int main(int argc, char** argv) {
 
         // zero out results
         memset(results, 0xFF, RESULTS_LEN);
-        checkcl("ends write", clEnqueueWriteBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
+        checkcl("results write", clEnqueueWriteBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
 
         // create the kernel itself
         checkcl("kernel arg set 0", clSetKernelArg(kernel, 0, sizeof(d_starts), &d_starts));
@@ -173,7 +172,6 @@ int main(int argc, char** argv) {
                 NULL                    // event
         ));
         
-
         checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, 0, RESULTS_LEN, results, 0, NULL, NULL));
 
 		checkcl("clFlush", clFlush(queue));
