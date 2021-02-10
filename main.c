@@ -29,7 +29,7 @@
 // so maybe it's perfect lol
 #define SEEDSPACE_MAX (1LLU << 44) // aka 2^48
 #define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1024
+#define THREAD_BATCH_SIZE 1920
 #define BLOCK_SIZE 8
 #define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
 
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
     checkcl("results count create", err);
 
     //uint64_t time_start = nanos();
-    printf("started at ctime: %llu", time(0));
+    printf("started at ctime: %llu\n", time(0));
 
     for (uint64_t kernel_offset = 0; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
         // generate kernel parameters
