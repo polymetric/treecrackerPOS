@@ -16,14 +16,14 @@
 // this is the initial filter stage that narrows down the seedspace from
 // 2^44 to however many seeds can generate this tree
 // this should use the tree with the most information
-kernel void filter_prim(global ulong *results_prim, global uint *results_prim_count) {
+kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim, global uint *results_prim_count) {
     // the global ID of this kernel is the lower 44 bits of the seed that
     // it's going to check. we just or that with the target X value
     // because we know the first seed for this tree should contain that value
     //
     // note: CL ids are size_t, so they should be big enough
     // if they're not that could be a bug on 32 bit machines :/
-    ulong seed = get_global_id(0) | ((ulong) PRIM_TARGET_X << 44);
+    ulong seed = (get_global_id(0) + *kernel_offset) | ((ulong) PRIM_TARGET_X << 44);
 
     // precalculated RNG steps for the primary tree
     if ((((seed *     25214903917LU +              11LU) >> 44) & 15) != 15) return;

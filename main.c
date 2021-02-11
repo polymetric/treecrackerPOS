@@ -27,8 +27,8 @@
 #define PROGRESS_FILE_PATH      "progress"
 
 #define SEEDSPACE_MAX           (1LLU << 44)
-#define THREAD_BATCH_SIZE       (1LLU << 28)
-#define BLOCK_SIZE              8
+#define THREAD_BATCH_SIZE       (1LLU << 32)
+#define BLOCK_SIZE              (1LLU << 10)
 
 #define RESULTS_PRIM_LEN        (THREAD_BATCH_SIZE * sizeof(uint64_t) / 10)
 #define RESULTS_PRIM_COUNT_LEN  (sizeof(uint32_t))
@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
     // number of auxiliary filter results
     cl_mem d_results_aux_count;
     uint32_t results_aux_count;
-
+    cl_mem d_kernel_offset;
     uint64_t kernel_offset = 0;
 
     // if there was a kernel in progress that was interrupted,
@@ -171,17 +171,31 @@ int main(int argc, char** argv) {
     d_results_aux_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_AUX_COUNT_LEN, NULL, &err);
     checkcl("results aux count create", err);
 
+    d_kernel_offset = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(kernel_offset), NULL, &err);
+    checkcl("kernel offset create", err);
+
     // main kernel loop
-    uint64_t time_start;
+    uint64_t time_global_start = nanos();
+    uint64_t time_last;
+    uint64_t time_batch_start;
     // slightly cursed for loop, we don't actually set the kernel offset here
     // because we initialized it to zero before, and if we restore progress
     // we just set it to the saved value
     for (; kernel_offset < SEEDSPACE_MAX; kernel_offset += THREAD_BATCH_SIZE) {
-        time_start = nanos();
+        time_batch_start = nanos();
+        time_last = nanos();
+
+        // zero out counters
+        results_prim_count = 0;
+        results_aux_count = 0;
+        checkcl("reset prim counter", clEnqueueWriteBuffer(queue, d_results_prim_count, CL_TRUE, 0, RESULTS_PRIM_COUNT_LEN, &results_prim_count, 0, NULL, NULL));
+        checkcl("reset aux counter", clEnqueueWriteBuffer(queue, d_results_aux_count, CL_TRUE, 0, RESULTS_AUX_COUNT_LEN, &results_aux_count, 0, NULL, NULL));
+        checkcl("write kernel offset", clEnqueueWriteBuffer(queue, d_kernel_offset, CL_TRUE, 0, sizeof(kernel_offset), &kernel_offset, 0, NULL, NULL));
 
         // queue the primary filter kernel for execution
-        checkcl("kernel arg set 0", clSetKernelArg(kernel_prim, 0, sizeof(d_results_prim), &d_results_prim));
-        checkcl("kernel arg set 1", clSetKernelArg(kernel_prim, 1, sizeof(d_results_prim_count), &d_results_prim_count));
+        checkcl("kernel arg set 0", clSetKernelArg(kernel_prim, 0, sizeof(d_kernel_offset), &d_kernel_offset));
+        checkcl("kernel arg set 1", clSetKernelArg(kernel_prim, 1, sizeof(d_results_prim), &d_results_prim));
+        checkcl("kernel arg set 2", clSetKernelArg(kernel_prim, 2, sizeof(d_results_prim_count), &d_results_prim_count));
         size_t global_dimensions = THREAD_BATCH_SIZE;
         size_t block_size = BLOCK_SIZE;
         checkcl("clEnqueueNDRangeKernel prim", clEnqueueNDRangeKernel(
@@ -205,11 +219,11 @@ int main(int argc, char** argv) {
         checkcl("clFinish kernel queue", clFinish(queue));
 
         // measure primary kernel time
-        double kernel_prim_time = (nanos() - time_start) / 1e9;
+        double kernel_prim_time = (nanos() - time_last) / 1e9;
         printf("primary kernel batch took %.6f\n", kernel_prim_time);
-        time_start = nanos();
+        time_last = nanos();
 
-        printf("got %8llu results from primary batch\n", results_prim_count);
+        printf("got %8u results from primary batch\n", results_prim_count);
 
         // run the aux kernel only if we got results from the initial filter
         if (results_prim_count > 0) {
@@ -240,11 +254,11 @@ int main(int argc, char** argv) {
             checkcl("clFinish kernel queue", clFinish(queue));
 
             // measure aux kernel time
-            double kernel_aux_time = (nanos() - time_start) / 1e9;
+            double kernel_aux_time = (nanos() - time_last) / 1e9;
             printf("aux kernel batch took %.6f\n", kernel_aux_time);
-            time_start = nanos();
+            time_last = nanos();
 
-            printf("got %8llu results from aux batch\n", results_aux_count);
+            printf("got %8u results from aux batch\n", results_aux_count);
 
             // queue aux result read
             checkcl("clEnqueueReadBuffer queue read aux results", clEnqueueReadBuffer(queue, d_results_aux, CL_FALSE, 0, results_aux_count, results_aux, 0, NULL, NULL));
@@ -254,8 +268,8 @@ int main(int argc, char** argv) {
             checkcl("clFinish read aux results", clFinish(queue));
 
             // measure result read time
-            printf("mem read took %.6f\n", (nanos() - time_start) / 1e9);
-            time_start = nanos();
+            printf("mem read took %.6f\n", (nanos() - time_last) / 1e9);
+            time_last = nanos();
 
             // write results to file
             for (size_t i = 0; i < results_aux_count; i++) {
@@ -264,13 +278,13 @@ int main(int argc, char** argv) {
             }
 
             // measure result write time
-            printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
+            printf("results write took %.6f\n", (nanos() - time_last) / 1e9);
         } else {
             printf("got 0 results from primary kernel, skipping aux kernel\n");
         }
 
         // print speed & progress
-        printf("running at %.3f sps\n", THREAD_BATCH_SIZE / kernel_prim_time);
+        printf("running at %.3f sps\n", (THREAD_BATCH_SIZE / ((nanos() - time_batch_start) / 1e9)));
         printf("progress: %15llu/%15llu, %6.2f%%\n\n", kernel_offset + THREAD_BATCH_SIZE, SEEDSPACE_MAX, (double) (kernel_offset + THREAD_BATCH_SIZE) / SEEDSPACE_MAX * 100);
 
         fflush(stdout);
