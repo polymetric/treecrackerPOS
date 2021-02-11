@@ -10,8 +10,9 @@
 
 // RNG stuff
 #define MASK ((1LU << 48) - 1)
-#define fwd_1(seed) (seed = (seed *     25214903917LU +              11LU) & MASK)
-#define rev_1(seed) (seed = (seed * 246154705703781LU + 107048004364969LU) & MASK)
+#define fwd_1(seed)   (seed = (seed *     25214903917LU +              11LU) & MASK)
+#define rev_1(seed)   (seed = (seed * 246154705703781LU + 107048004364969LU) & MASK)
+#define rev_200(seed) (seed = (seed *  15979170613729LU + 104879302748152LU) & MASK)
 
 // this is the initial filter stage that narrows down the seedspace from
 // 2^44 to however many seeds can generate this tree
@@ -120,6 +121,8 @@ kernel void filter_aux(
         global uint  *results_aux_count
 ) {
     ulong seed = results_prim[get_global_id(0)];
+
+    rev_200(seed);
     
     // bit field for the trees that we find
     // the reason we use a bit field instead of a counter is so we can
@@ -132,7 +135,7 @@ kernel void filter_aux(
     // we loop thru the possible places that the aux trees could be
     // near the primary tree and check them
     uchar tree_x, tree_z;
-    for (int call_offset = 0; call_offset < TREE_CALL_RANGE; call_offset++) {
+    for (int call_offset = 0; call_offset < TREE_CALL_RANGE * 2; call_offset++) {
         tree_x = (fwd_1(seed) >> 44) & 15; // nextInt(16)
         tree_z = (fwd_1(seed) >> 44) & 15; // nextInt(16)
 
