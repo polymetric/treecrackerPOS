@@ -45,16 +45,7 @@ void checkcl(const char *fn, int err) {
     }
 }
 
-volatile int interrupted = 0;
-
-void interrupt(int signal) {
-    interrupted = 1;
-}
-
 int main(int argc, char** argv) {
-    // interrupt signal
-    signal(SIGINT, interrupt);
-
     // source file variables
     FILE *source_file;
     char *source_str;
@@ -104,6 +95,8 @@ int main(int argc, char** argv) {
     cl_mem d_kernel_offset;
     uint64_t kernel_offset = 0;
 
+    uint64_t total_results = 0;
+
     // if there was a kernel in progress that was interrupted,
     // restore its progress
     FILE *results_file;
@@ -128,6 +121,8 @@ int main(int argc, char** argv) {
         // we just want to create the file and write straight to it
         results_file = fopen(RESULTS_FILE_PATH, "wb");
     }
+
+    progress_file = fopen(PROGRESS_FILE_PATH, "wb");
 
     // cl boilerplate
     // for now it just gets the first device of the first platform
@@ -276,6 +271,7 @@ int main(int argc, char** argv) {
                 uint64_t result = results_aux[i];
                 fwrite(&result, sizeof(uint64_t), 1, results_file);
             }
+            fflush(results_file);
 
             // measure result write time
             printf("results write took %.6f\n", (nanos() - time_last) / 1e9);
@@ -289,27 +285,17 @@ int main(int argc, char** argv) {
 
         fflush(stdout);
 
-        // if interrupted, save progress (duh)
-        if (interrupted) {
-            printf("interrupted - saving progress\n");
-            progress_file = fopen(PROGRESS_FILE_PATH, "wb");
-            fwrite(&kernel_offset, sizeof(uint64_t), 1, progress_file);
-            fflush(stdout);
-            fflush(progress_file);
-            fclose(progress_file);
-            fflush(results_file);
-            fclose(results_file);
-            exit(0);
-        }
+        // write progress in case we crash or cancel
+        fwrite(&kernel_offset, sizeof(kernel_offset), 1, progress_file);
+        fflush(progress_file);
     }
 
-    // close progress file if it exists
-    if (progress_file != NULL) {
-        fclose(progress_file);
-    }
-    // and delete it
+    // close and delete progress file
+    fclose(progress_file);
     remove(PROGRESS_FILE_PATH);
 
+    // make sure results file is flushed and closed
+    // as a precaution
     fflush(results_file);
     fclose(results_file);
 
