@@ -7,6 +7,7 @@
 
 #define CL_TARGET_OPENCL_VERSION 220
 #pragma OPENCL EXTENSION cl_khr_icd : enable
+#pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
@@ -16,31 +17,24 @@
 
 #include "nanos.h"
 
-#define DEVICE_TYPE CL_DEVICE_TYPE_GPU
+#define DEVICE_TYPE             CL_DEVICE_TYPE_GPU
 
-#define SOURCE_FILENAME "trees.cl"
-#define SOURCE_KERNELNAME "trees"
+#define SOURCE_FILENAME         "trees.cl"
+#define KERNEL_PRIM_NAME        "filter_prim"
+#define KERNEL_AUX_NAME         "filter_aux"
 
-#define RESULTS_FILE_PATH "treeseeds.txt"
-#define PROGRESS_FILE_PATH "progress"
+#define RESULTS_FILE_PATH       "treeseeds.bin"
+#define PROGRESS_FILE_PATH      "progress"
 
-// we don't subtract one from SEEDSPACE_MAX because
-// if we did it wouldn't be divisible by SEEDS_PER_KERNEL
-// and i think technically it just wraps around to 0
-// so technically we're just checking seed 0 twice
-// except that probably doesn't happen because the range
-// is inclusive-exclusive like an idiomatic for loop
-// so maybe it's perfect lol
-#define SEEDSPACE_MAX (1LLU << 44)
-#define SEEDS_PER_KERNEL (1 << 18)
-#define THREAD_BATCH_SIZE 1024
-#define BLOCK_SIZE 8
-#define TOTAL_KERNELS (SEEDSPACE_MAX / SEEDS_PER_KERNEL)
+#define SEEDSPACE_MAX           (1LLU << 44)
+#define THREAD_BATCH_SIZE       (1LLU << 28)
+#define BLOCK_SIZE              8
 
-#define STARTS_LEN        (THREAD_BATCH_SIZE * sizeof(uint64_t))
-#define ENDS_LEN          (THREAD_BATCH_SIZE * sizeof(uint64_t))
-#define RESULTS_LEN       (THREAD_BATCH_SIZE * sizeof(uint64_t) * SEEDS_PER_KERNEL)
-#define RESULTS_COUNT_LEN (THREAD_BATCH_SIZE * sizeof(size_t))
+#define RESULTS_PRIM_LEN        (THREAD_BATCH_SIZE * sizeof(uint64_t) / 10)
+#define RESULTS_PRIM_COUNT_LEN  (sizeof(uint32_t))
+
+#define RESULTS_AUX_LEN         (THREAD_BATCH_SIZE * sizeof(uint64_t) / 100)
+#define RESULTS_AUX_COUNT_LEN   (sizeof(uint32_t))
 
 void checkcl(const char *fn, int err) {
     if (err != CL_SUCCESS) {
@@ -58,14 +52,15 @@ void interrupt(int signal) {
 }
 
 int main(int argc, char** argv) {
+    // interrupt signal
+    signal(SIGINT, interrupt);
+
     // source file variables
     FILE *source_file;
     char *source_str;
     size_t source_size;
 
-    signal(SIGINT, interrupt);
-
-    // load kernel
+    // load program source
     source_file = fopen(SOURCE_FILENAME, "r");
     if (source_file == NULL) {
         perror("file error");
@@ -76,7 +71,7 @@ int main(int argc, char** argv) {
     source_size = ftell(source_file);
     fseek(source_file, 0, SEEK_SET);
     source_str = malloc(source_size + 1);
-    source_str[source_size] = '\0';
+    memset(source_str, 0, source_size + 1);
     fread(source_str, 1, source_size, source_file);
     fclose(source_file);
 
@@ -90,18 +85,27 @@ int main(int argc, char** argv) {
     cl_command_queue queue;
 
     cl_program program;
-    cl_kernel kernel;
+    cl_kernel kernel_prim;
+    cl_kernel kernel_aux;
+    
+    // host & device memory objects for
+    // primary filter results
+    cl_mem d_results_prim;
+//    uint64_t *results_prim = malloc(RESULTS_PRIM_LEN); 
+    // number of primary filter results
+    cl_mem d_results_prim_count;
+    uint32_t results_prim_count;
+    // auxiliary filter results
+    cl_mem d_results_aux;
+    uint64_t *results_aux = malloc(RESULTS_AUX_LEN);
+    // number of auxiliary filter results
+    cl_mem d_results_aux_count;
+    uint32_t results_aux_count;
 
-    cl_mem d_starts;
-    cl_mem d_ends;
-    cl_mem d_results;
-    cl_mem d_results_count;
-    uint64_t *starts = malloc(STARTS_LEN);
-    uint64_t *ends = malloc(ENDS_LEN);
-    uint64_t *results = malloc(RESULTS_LEN);
-    size_t *results_count = malloc(RESULTS_COUNT_LEN);
     uint64_t kernel_offset = 0;
 
+    // if there was a kernel in progress that was interrupted,
+    // restore its progress
     FILE *results_file;
     FILE *progress_file;
 
@@ -120,6 +124,8 @@ int main(int argc, char** argv) {
         printf("existing results file found. please delete or rename it to continue\n");
         exit(1);
     } else {
+        // if there was no existing results file
+        // we just want to create the file and write straight to it
         results_file = fopen(RESULTS_FILE_PATH, "wb");
     }
 
@@ -136,6 +142,7 @@ int main(int argc, char** argv) {
     program = clCreateProgramWithSource(context, 1, (const char **) &source_str, NULL, &err);
     checkcl("clCreateProgramWithSource", err);
     err = clBuildProgram(program, 0, NULL, NULL, NULL, NULL);
+    // print build log if there was an error
     if (err != CL_SUCCESS) {
         size_t log_size;
         clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
@@ -146,57 +153,40 @@ int main(int argc, char** argv) {
         fflush(stderr);
         exit(-1);
     }
-    kernel = clCreateKernel(program, SOURCE_KERNELNAME, &err);
-    checkcl("clCreateKernel", err);
 
-    // create buffers for kernel parameters
-    d_starts = clCreateBuffer(context, CL_MEM_READ_ONLY, STARTS_LEN, NULL, &err);
-    checkcl("starts create", err);
-    d_ends = clCreateBuffer(context, CL_MEM_READ_ONLY, ENDS_LEN, NULL, &err);
-    checkcl("ends create", err);
+    // create primary & auxiliary filter kernel
+    kernel_prim = clCreateKernel(program, KERNEL_PRIM_NAME, &err);
+    checkcl("clCreateKernel prim", err);
+    kernel_aux = clCreateKernel(program, KERNEL_AUX_NAME, &err);
+    checkcl("clCreateKernel aux", err);
 
-    // create buffer for results
-    d_results = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_LEN, NULL, &err);
-    checkcl("results create", err);
-    d_results_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_COUNT_LEN, NULL, &err);
-    checkcl("results count create", err);
+    // create buffer for primary results
+    d_results_prim = clCreateBuffer(context, CL_MEM_READ_WRITE, RESULTS_PRIM_LEN, NULL, &err);
+    checkcl("results prim create", err);
+    d_results_prim_count = clCreateBuffer(context, CL_MEM_READ_WRITE, RESULTS_PRIM_COUNT_LEN, NULL, &err);
+    checkcl("results prim count create", err);
+    // and aux
+    d_results_aux = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_AUX_LEN, NULL, &err);
+    checkcl("results aux create", err);
+    d_results_aux_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_AUX_COUNT_LEN, NULL, &err);
+    checkcl("results aux count create", err);
 
-    //uint64_t time_start = nanos();
-    printf("started at ctime: %llu\n", time(0));
-
-    for (; kernel_offset < TOTAL_KERNELS; kernel_offset += THREAD_BATCH_SIZE) {
-        // generate kernel parameters
-        uint64_t time_start = nanos();
-
-        if (SEEDSPACE_MAX % SEEDS_PER_KERNEL != 0) {
-            fprintf(stderr, "seedspace_max (%llu) is not divisible by seeds per kernel (%llu)!", SEEDSPACE_MAX, SEEDS_PER_KERNEL);
-            exit(-1);
-        }
-        for (uint64_t kernel = kernel_offset; kernel < kernel_offset + THREAD_BATCH_SIZE; kernel++) {
-            uint64_t rel_kernel = kernel - kernel_offset;
-            starts[rel_kernel] = kernel * SEEDS_PER_KERNEL;
-            ends[rel_kernel] = (kernel + 1) * SEEDS_PER_KERNEL - 1;
-            //printf("[HOST] spawned thread id %6d with start %12d and end %12d\n", kernel, starts[rel_kernel], ends[rel_kernel]);
-        }
-
-        printf("work dist took %.6f\n", (nanos() - time_start) / 1e9);
-        fflush(stdout);
+    // main kernel loop
+    uint64_t time_start;
+    // slightly cursed for loop, we don't actually set the kernel offset here
+    // because we initialized it to zero before, and if we restore progress
+    // we just set it to the saved value
+    for (; kernel_offset < SEEDSPACE_MAX; kernel_offset += THREAD_BATCH_SIZE) {
         time_start = nanos();
 
-		// write to kernel param buffers
-        checkcl("starts write", clEnqueueWriteBuffer(queue, d_starts, CL_FALSE, 0, STARTS_LEN, starts, 0, NULL, NULL));
-        checkcl("ends write", clEnqueueWriteBuffer(queue, d_ends, CL_FALSE, 0, ENDS_LEN, ends, 0, NULL, NULL));
-
-        // create the kernel itself
-        checkcl("kernel arg set 0", clSetKernelArg(kernel, 0, sizeof(d_starts), &d_starts));
-        checkcl("kernel arg set 1", clSetKernelArg(kernel, 1, sizeof(d_ends), &d_ends));
-        checkcl("kernel arg set 2", clSetKernelArg(kernel, 2, sizeof(d_results), &d_results));
-        checkcl("kernel arg set 3", clSetKernelArg(kernel, 3, sizeof(d_results_count), &d_results_count));
+        // queue the primary filter kernel for execution
+        checkcl("kernel arg set 0", clSetKernelArg(kernel_prim, 0, sizeof(d_results_prim), &d_results_prim));
+        checkcl("kernel arg set 1", clSetKernelArg(kernel_prim, 1, sizeof(d_results_prim_count), &d_results_prim_count));
         size_t global_dimensions = THREAD_BATCH_SIZE;
         size_t block_size = BLOCK_SIZE;
-        checkcl("clEnqueueNDRangeKernel", clEnqueueNDRangeKernel(
+        checkcl("clEnqueueNDRangeKernel prim", clEnqueueNDRangeKernel(
                 queue,                  // command queue
-                kernel,                 // kernel
+                kernel_prim,            // kernel
                 1,                      // work dimensions
                 NULL,                   // global work offset
                 &global_dimensions,     // global work size
@@ -206,51 +196,86 @@ int main(int argc, char** argv) {
                 NULL                    // event
         ));
         
+        // read results count
+        // TODO figure out why tf this segfaults
+        checkcl("clEnqueueReadBuffer queue read prim results count", clEnqueueReadBuffer(queue, d_results_prim_count, CL_FALSE, 0, RESULTS_PRIM_COUNT_LEN, &results_prim_count, 0, NULL, NULL));
+
+        // wait for primary kernel to finish
 		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish kernel queue", clFinish(queue));
 
-        double kernel_time = (nanos() - time_start) / 1e9;
-        printf("kernel batch took %.6f\n", kernel_time);
+        // measure primary kernel time
+        double kernel_prim_time = (nanos() - time_start) / 1e9;
+        printf("primary kernel batch took %.6f\n", kernel_prim_time);
         time_start = nanos();
 
-        checkcl("clEnqueueReadBuffer read results count queue", clEnqueueReadBuffer(queue, d_results_count, CL_FALSE, 0, RESULTS_COUNT_LEN, results_count, 0, NULL, NULL));
+        printf("got %8llu results from primary batch\n", results_prim_count);
 
-		checkcl("clFlush", clFlush(queue));
-        checkcl("clFinish", clFinish(queue));
-
-        size_t total_results = 0;
-        uint64_t *results_offset = results;
-        for (size_t i = 0; i < THREAD_BATCH_SIZE; i++) {
-            size_t offset = i * SEEDS_PER_KERNEL * sizeof(uint64_t);
-            size_t res_ct = results_count[i] * sizeof(uint64_t);
-            checkcl("clEnqueueReadBuffer", clEnqueueReadBuffer(queue, d_results, CL_FALSE, offset, res_ct, results_offset, 0, NULL, NULL));
-            //printf("read result %15llu from offset %15llu and length %15llu\n", results[i], offset, res_ct);
-            results_offset += results_count[i];
-            //printf("writing to results array at index %15llu\n", res_ct);
-            total_results += results_count[i];
-        }
+        // run the aux kernel only if we got results from the initial filter
+        if (results_prim_count > 0) {
+            // and queue the auxiliary filter kernel
+            checkcl("kernel arg set 0", clSetKernelArg(kernel_aux, 0, sizeof(d_results_prim), &d_results_prim));
+            checkcl("kernel arg set 1", clSetKernelArg(kernel_aux, 1, sizeof(d_results_prim_count), &d_results_prim_count));
+            checkcl("kernel arg set 2", clSetKernelArg(kernel_aux, 2, sizeof(d_results_aux), &d_results_aux));
+            checkcl("kernel arg set 3", clSetKernelArg(kernel_aux, 3, sizeof(d_results_aux_count), &d_results_aux_count));
+            global_dimensions = results_prim_count;
+            block_size = BLOCK_SIZE;
+            checkcl("clEnqueueNDRangeKernel aux", clEnqueueNDRangeKernel(
+                    queue,                  // command queue
+                    kernel_aux,             // kernel
+                    1,                      // work dimensions
+                    NULL,                   // global work offset
+                    &global_dimensions,     // global work size
+                    NULL,                   // local work size (NULL = auto)
+                    0,                      // number of events in wait list
+                    NULL,                   // event wait list
+                    NULL                    // event
+            ));
             
-        printf("read %d results\n", total_results);
+            // read aux results count
+            checkcl("clEnqueueReadBuffer queue read aux results count", clEnqueueReadBuffer(queue, d_results_aux_count, CL_FALSE, 0, RESULTS_AUX_COUNT_LEN, &results_aux_count, 0, NULL, NULL));
 
-		checkcl("clFlush", clFlush(queue));
-        checkcl("clFinish read results", clFinish(queue));
+            // wait for aux kernel to finish
+            checkcl("clFlush", clFlush(queue));
+            checkcl("clFinish kernel queue", clFinish(queue));
 
-        printf("mem read took %.6f\n", (nanos() - time_start) / 1e9);
-        time_start = nanos();
+            // measure aux kernel time
+            double kernel_aux_time = (nanos() - time_start) / 1e9;
+            printf("aux kernel batch took %.6f\n", kernel_aux_time);
+            time_start = nanos();
 
-        for (size_t i = 0; i < total_results; i++) {
-            //printf("%15llu\n", results[i]);
-            //printf("%15llu %15llu\n", i, results[i]);
-            uint64_t result = results[i];
-            fwrite(&result, sizeof(uint64_t), 1, results_file);
+            printf("got %8llu results from aux batch\n", results_aux_count);
+
+            // queue aux result read
+            checkcl("clEnqueueReadBuffer queue read aux results", clEnqueueReadBuffer(queue, d_results_aux, CL_FALSE, 0, results_aux_count, results_aux, 0, NULL, NULL));
+
+            // wait for the results to be read
+            checkcl("clFlush", clFlush(queue));
+            checkcl("clFinish read aux results", clFinish(queue));
+
+            // measure result read time
+            printf("mem read took %.6f\n", (nanos() - time_start) / 1e9);
+            time_start = nanos();
+
+            // write results to file
+            for (size_t i = 0; i < results_aux_count; i++) {
+                uint64_t result = results_aux[i];
+                fwrite(&result, sizeof(uint64_t), 1, results_file);
+            }
+
+            // measure result write time
+            printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
+        } else {
+            printf("got 0 results from primary kernel, skipping aux kernel\n");
         }
 
-        printf("results write took %.6f\n", (nanos() - time_start) / 1e9);
-        printf("running at %.3f sps\n", (SEEDS_PER_KERNEL * THREAD_BATCH_SIZE) / kernel_time);
-        printf("progress: %15llu/%15llu, %6.2f%%\n", ends[THREAD_BATCH_SIZE-1], SEEDSPACE_MAX, (double) ends[THREAD_BATCH_SIZE-1] / SEEDSPACE_MAX * 100);
+        // print speed & progress
+        printf("running at %.3f sps\n", THREAD_BATCH_SIZE / kernel_prim_time);
+        printf("progress: %15llu/%15llu, %6.2f%%\n\n", kernel_offset + THREAD_BATCH_SIZE, SEEDSPACE_MAX, (double) (kernel_offset + THREAD_BATCH_SIZE) / SEEDSPACE_MAX * 100);
 
         fflush(stdout);
 
+        // if interrupted, save progress (duh)
         if (interrupted) {
             printf("interrupted - saving progress\n");
             progress_file = fopen(PROGRESS_FILE_PATH, "wb");
@@ -263,10 +288,14 @@ int main(int argc, char** argv) {
             exit(0);
         }
     }
+
+    // close progress file if it exists
     if (progress_file != NULL) {
         fclose(progress_file);
     }
+    // and delete it
     remove(PROGRESS_FILE_PATH);
+
     fflush(results_file);
     fclose(results_file);
 
