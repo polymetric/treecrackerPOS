@@ -4,6 +4,7 @@
 #include <string.h>
 #include <signal.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define CL_TARGET_OPENCL_VERSION 220
 #pragma OPENCL EXTENSION cl_khr_icd : enable
@@ -267,10 +268,13 @@ int main(int argc, char** argv) {
             time_last = nanos();
 
             // write results to file
+            printf("uerehd host results count: %d\n", results_aux_count);
             for (size_t i = 0; i < results_aux_count; i++) {
+                printf("host sadsadasdasdas %15llu\n", results_aux[i]);
                 uint64_t result = results_aux[i];
                 fwrite(&result, sizeof(uint64_t), 1, results_file);
             }
+            exit(-1); // temp debug
             fflush(results_file);
 
             // measure result write time
