@@ -274,6 +274,7 @@ int main(int argc, char** argv) {
             time_last = nanos();
 
             // write results to file
+            total_results += results_aux_count;
             for (size_t i = 0; i < results_aux_count; i++) {
                 uint64_t result = results_aux[i];
                 fwrite(&result, sizeof(uint64_t), 1, results_file);
@@ -289,6 +290,7 @@ int main(int argc, char** argv) {
         // print speed & progress
         printf("running at %.3f sps\n", (THREAD_BATCH_SIZE / ((nanos() - time_batch_start) / 1e9)));
         printf("progress: %15llu / %15llu, %6.2f%%\n\n", kernel_offset + THREAD_BATCH_SIZE, SEEDSPACE_MAX, (double) (kernel_offset + THREAD_BATCH_SIZE) / SEEDSPACE_MAX * 100);
+        printf("total results: %10llu\n", total_results);
 
         fflush(stdout);
 
