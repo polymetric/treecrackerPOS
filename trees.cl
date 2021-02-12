@@ -45,8 +45,7 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
     // if we make it past all those checks, save the seed
     // and increment the counter for the seeds we have found with the first
     // filter
-    results_prim[*results_prim_count] = seed;
-    atomic_add(results_prim_count, 1);
+    results_prim[atomic_add(results_prim_count, 1)] = seed;
 }
 
 #define get_tree_flag(tree_flags, tree_id) ((tree_flags >> tree_id) & 1)
@@ -80,38 +79,30 @@ uchar check_tree_aux_0(ulong seed) {
 
 uchar check_tree_aux_1(ulong seed) {
     // precalculated RNG steps for aux tree
-    // if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0;
-    // if ((((seed * 120950523281469LU + 102626409374399LU) >> 47) &  1) !=  1) return 0;
-    // if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
-    // if ((((seed * 177269950146317LU + 148267022728371LU) >> 47) &  1) !=  0) return 0;
-    // if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
-    // if ((((seed * 118637304785629LU + 262259097190887LU) >> 47) &  1) !=  0) return 0;
-    // if ((((seed *     25214903917LU +              11LU) >> 17) %  5) !=  0) return 0;
-    // if ((((seed * 205749139540585LU +    277363943098LU) >> 17) %  3) !=  1) return 0;
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed * 120950523281469LU + 102626409374399LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed * 177269950146317LU + 148267022728371LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed * 118637304785629LU + 262259097190887LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) !=  0) return 0;
+    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) %  3) !=  1) return 0;
 
     return 1;
 }
 
 uchar check_tree_aux_2(ulong seed) {
     // precalculated RNG steps for aux tree
-    // if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
-    // if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
-    // if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  1) return 0;
-    // if ((((seed * 127636996050457LU + 159894566279526LU) >> 47) &  1) !=  0) return 0;
-    // if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
-    // if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
-    // if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
-    // if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  1) return 0;
+    if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed * 127636996050457LU + 159894566279526LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
+    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  1) return 0;
 
     return 1;
-}
-
-uint atomic_get_and_inc(__global volatile uint *pointer) {
-    uint value;
-    do {
-        value = *pointer;
-    } while (atomic_cmpxchg(pointer, value, value + 1) != value);
-    return value;
 }
 
 // this is the filter used to significantly narrow down the seeds we acquired
@@ -159,8 +150,6 @@ kernel void filter_aux(
     
     // if all the flags are set, we found a very good candidate seed
     if (tree_flags == TARGET_TREE_FLAGS) {
-        // printf("kernel sadsadasdasdas %15llu\n", results_prim[get_global_id(0)]);
-        printf("kernel id %15llu writing to array index %15llu\n", get_global_id(0), *results_aux_count);
-        results_aux[atomic_get_and_inc(results_aux_count)] = results_prim[get_global_id(0)];
+        results_aux[atomic_inc(results_aux_count)] = results_prim[get_global_id(0)];
     }
 }

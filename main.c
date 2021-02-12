@@ -28,7 +28,10 @@
 #define PROGRESS_FILE_PATH      "progress"
 
 #define SEEDSPACE_MAX           (1LLU << 44)
-#define THREAD_BATCH_SIZE       (1LLU << 32)
+// apparently, at least on windows, THREAD_BATCH_SIZE can't be 2^32 because
+// it overflows or something and makes the kernel ids like 2^64 or somethin
+// TODO see if this happens on linux
+#define THREAD_BATCH_SIZE       (1LLU << 31)
 #define BLOCK_SIZE              (1LLU << 10)
 
 #define RESULTS_PRIM_LEN        (THREAD_BATCH_SIZE * sizeof(uint64_t) / 10)
@@ -205,14 +208,17 @@ int main(int argc, char** argv) {
                 NULL,                   // event wait list
                 NULL                    // event
         ));
-        
-        // read results count
-        // TODO figure out why tf this segfaults
-        checkcl("clEnqueueReadBuffer queue read prim results count", clEnqueueReadBuffer(queue, d_results_prim_count, CL_FALSE, 0, RESULTS_PRIM_COUNT_LEN, &results_prim_count, 0, NULL, NULL));
 
         // wait for primary kernel to finish
 		checkcl("clFlush", clFlush(queue));
         checkcl("clFinish kernel queue", clFinish(queue));
+        
+        // read results count
+        // TODO figure out why tf this segfaults
+        // i just moved it to below the wait for the kernel to finish calls
+        // it might have been because of that, we'll see - it hasn't happened in
+        // a while
+        checkcl("clEnqueueReadBuffer queue read prim results count", clEnqueueReadBuffer(queue, d_results_prim_count, CL_TRUE, 0, RESULTS_PRIM_COUNT_LEN, &results_prim_count, 0, NULL, NULL));
 
         // measure primary kernel time
         double kernel_prim_time = (nanos() - time_last) / 1e9;
@@ -257,7 +263,7 @@ int main(int argc, char** argv) {
             printf("got %8u results from aux batch\n", results_aux_count);
 
             // queue aux result read
-            checkcl("clEnqueueReadBuffer queue read aux results", clEnqueueReadBuffer(queue, d_results_aux, CL_FALSE, 0, results_aux_count, results_aux, 0, NULL, NULL));
+            checkcl("clEnqueueReadBuffer queue read aux results", clEnqueueReadBuffer(queue, d_results_aux, CL_FALSE, 0, results_aux_count * sizeof(uint64_t), results_aux, 0, NULL, NULL));
 
             // wait for the results to be read
             checkcl("clFlush", clFlush(queue));
@@ -268,13 +274,10 @@ int main(int argc, char** argv) {
             time_last = nanos();
 
             // write results to file
-            printf("uerehd host results count: %d\n", results_aux_count);
             for (size_t i = 0; i < results_aux_count; i++) {
-                printf("host sadsadasdasdas %15llu\n", results_aux[i]);
                 uint64_t result = results_aux[i];
                 fwrite(&result, sizeof(uint64_t), 1, results_file);
             }
-            exit(-1); // temp debug
             fflush(results_file);
 
             // measure result write time
