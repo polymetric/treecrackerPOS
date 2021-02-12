@@ -288,7 +288,7 @@ int main(int argc, char** argv) {
 
         // print speed & progress
         printf("running at %.3f sps\n", (THREAD_BATCH_SIZE / ((nanos() - time_batch_start) / 1e9)));
-        printf("progress: %15llu/%15llu, %6.2f%%\n\n", kernel_offset + THREAD_BATCH_SIZE, SEEDSPACE_MAX, (double) (kernel_offset + THREAD_BATCH_SIZE) / SEEDSPACE_MAX * 100);
+        printf("progress: %15llu / %15llu, %6.2f%%\n\n", kernel_offset + THREAD_BATCH_SIZE, SEEDSPACE_MAX, (double) (kernel_offset + THREAD_BATCH_SIZE) / SEEDSPACE_MAX * 100);
 
         fflush(stdout);
 
