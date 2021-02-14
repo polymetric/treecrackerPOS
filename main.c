@@ -277,7 +277,8 @@ int main(int argc, char** argv) {
             total_results += results_aux_count;
             for (size_t i = 0; i < results_aux_count; i++) {
                 uint64_t result = results_aux[i];
-                fwrite(&result, sizeof(uint64_t), 1, results_file);
+//                fwrite(&result, sizeof(uint64_t), 1, results_file);
+                fprintf(results_file, "%llu\n", result);
             }
             fflush(results_file);
 
