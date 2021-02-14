@@ -5,7 +5,7 @@
 // this is the maximum number of calls that each tree can be from each other
 // if you change this you should recalculate the LCG values as well
 // because i'm too lazy to make a macro that does that
-#define TREE_CALL_RANGE 200
+#define TREE_CALL_RANGE 220
 
 #define AUX_TREE_COUNT 3
 #define TARGET_TREE_FLAGS ((1 << AUX_TREE_COUNT) - 1)
