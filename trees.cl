@@ -53,7 +53,7 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
 #define set_tree_flag(tree_flags, tree_id) (tree_flags |= 1 << tree_id)
 
 #define check_tree(tree_id, target_x, target_z) {\
-    if (get_tree_flag(tree_flags, 0) == 0\
+    if (get_tree_flag(tree_flags, tree_id) == 0\
             && tree_x == target_x\
             && tree_z == target_z\
     ) {\
@@ -159,7 +159,7 @@ kernel void filter_aux(
 
         rev_1(seed);
     }
-    
+
     // if all the flags are set, we found a very good candidate seed
     if (tree_flags == TARGET_TREE_FLAGS) {
         results_aux[atomic_inc(results_aux_count)] = results_prim[get_global_id(0)];
