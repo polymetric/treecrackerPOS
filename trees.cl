@@ -148,9 +148,9 @@ kernel void filter_aux(
         tree_x = (fwd_1(seed) >> 44) & 15; // nextInt(16)
         tree_z = (fwd_1(seed) >> 44) & 15; // nextInt(16)
 
-        check_tree(0,  0, 11); // TREE 2
-        check_tree(1,  6, 15); // TREE 
-        check_tree(2,  5,  8); // L4
+        check_tree(0, 15, 10); // TREE 2
+        check_tree(1,  1,  1); // TREE 0
+        check_tree(2, 12,  2); // TREE 3
 
         rev_1(seed);
     }
