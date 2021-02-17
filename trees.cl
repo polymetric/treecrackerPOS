@@ -84,7 +84,7 @@ uchar check_tree_aux_1(ulong seed) {
     if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
     if ((((seed * 118637304785629LU + 262259097190887LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *     25214903917LU +              11LU) >> 17) %  5) !=  0) return 0;
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) %  3) !=  1) return 0;
+    //if ((((seed * 205749139540585LU +    277363943098LU) >> 17) %  3) !=  1) return 0; // not sure about the height on this one
 
     return 1;
 }
@@ -99,7 +99,15 @@ uchar check_tree_aux_2(ulong seed) {
     if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
     if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
     if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
-    //if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  0) return 0; // not sure about the height on this one
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  0) return 0; // not sure about the height on this one
+
+    return 1;
+}
+
+uchar check_tree_aux_3(ulong seed) {
+    // precalculated RNG steps for aux tree
+    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
+    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
 
     return 1;
 }
@@ -140,9 +148,10 @@ kernel void filter_aux(
         tree_x = (fwd_1(seed) >> 44) & 15; // nextInt(16)
         tree_z = (fwd_1(seed) >> 44) & 15; // nextInt(16)
 
-        check_tree(0, 13,  0); // TREE 0
-        check_tree(1, 14,  7); // TREE 1
-        check_tree(2,  8,  3); // TREE 2
+        check_tree(0, 13,  0); // TREE 0 - L4
+        check_tree(1, 14,  7); // TREE 1 - L5
+        check_tree(2,  8,  3); // TREE 2 - L6
+        check_tree(3, 11, 12); // TREE 4 - L9
 
         rev_1(seed);
     }
