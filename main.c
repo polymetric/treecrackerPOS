@@ -24,13 +24,12 @@
 #define KERNEL_PRIM_NAME        "filter_prim"
 #define KERNEL_AUX_NAME         "filter_aux"
 
-#define RESULTS_FILE_PATH       "treeseeds.bin"
+#define RESULTS_FILE_PATH       "treeseeds.txt"
 #define PROGRESS_FILE_PATH      "progress"
 
 #define SEEDSPACE_MAX           (1LLU << 44)
-// apparently, at least on windows, THREAD_BATCH_SIZE can't be 2^32 because
+// apparently THREAD_BATCH_SIZE can't be 2^32 because
 // it overflows or something and makes the kernel ids like 2^64 or somethin
-// TODO see if this happens on linux
 #define THREAD_BATCH_SIZE       (1LLU << 31)
 #define BLOCK_SIZE              (1LLU << 10)
 
@@ -211,7 +210,7 @@ int main(int argc, char** argv) {
 
         // wait for primary kernel to finish
 		checkcl("clFlush", clFlush(queue));
-        checkcl("clFinish kernel queue", clFinish(queue));
+        checkcl("clFinish prim kernel queue", clFinish(queue));
         
         // read results count
         // TODO figure out why tf this segfaults
@@ -253,7 +252,7 @@ int main(int argc, char** argv) {
 
             // wait for aux kernel to finish
             checkcl("clFlush", clFlush(queue));
-            checkcl("clFinish kernel queue", clFinish(queue));
+            checkcl("clFinish aux kernel queue", clFinish(queue));
 
             // measure aux kernel time
             double kernel_aux_time = (nanos() - time_last) / 1e9;
