@@ -1,6 +1,6 @@
 // IMPORTANT
 // don't forget to change the primary tree's target x!
-#define PRIM_TARGET_X 15
+#define PRIM_TARGET_X 7
 
 // this is the maximum number of calls that each tree can be from each other
 // if you change this you should recalculate the LCG values as well
@@ -29,7 +29,7 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
     ulong seed = (get_global_id(0) + *kernel_offset) | ((ulong) PRIM_TARGET_X << 44);
 
     // precalculated RNG steps for the primary tree
-    if ((((seed *     25214903917LU +              11LU) >> 44) & 15) != 15) return;
+    if ((((seed *     25214903917LU +              11LU) >> 44) & 15) !=  7) return;
     if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  0) return;
     if ((((seed * 128954768138017LU + 137139456763464LU) >> 47) &  1) !=  0) return;
     if ((((seed * 177269950146317LU + 148267022728371LU) >> 47) &  1) !=  0) return;
@@ -63,15 +63,14 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
 
 uchar check_tree_aux_0(ulong seed) {
     // precalculated RNG steps for aux tree
-    if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  0) return 0;
-    if ((((seed * 128954768138017LU + 137139456763464LU) >> 47) &  1) !=  0) return 0;
-    if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed * 127636996050457LU + 159894566279526LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
     if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
     if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  0) return 0;
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  1) return 0;
 
     return 1;
 }
@@ -92,14 +91,15 @@ uchar check_tree_aux_1(ulong seed) {
 
 uchar check_tree_aux_2(ulong seed) {
     // precalculated RNG steps for aux tree
-    if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
-    if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed * 127636996050457LU + 159894566279526LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed * 128954768138017LU + 137139456763464LU) >> 47) &  1) !=  0) return 0;
+    if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  1) return 0;
+    if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
     if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
     if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  1) return 0;
+    //if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  0) return 0; // not sure about the height on this one
 
     return 1;
 }
@@ -140,9 +140,9 @@ kernel void filter_aux(
         tree_x = (fwd_1(seed) >> 44) & 15; // nextInt(16)
         tree_z = (fwd_1(seed) >> 44) & 15; // nextInt(16)
 
-        check_tree(0,  5,  8); // TREE 2
-        check_tree(1,  6, 15); // TREE 0
-        check_tree(2,  0, 11); // TREE 3
+        check_tree(0, 13,  0); // TREE 0
+        check_tree(1, 14,  7); // TREE 1
+        check_tree(2,  8,  3); // TREE 2
 
         rev_1(seed);
     }
