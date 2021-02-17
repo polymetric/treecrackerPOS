@@ -27,9 +27,6 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
     // note: CL ids are size_t, so they should be big enough
     // if they're not that could be a bug on 32 bit machines :/
     ulong seed = (get_global_id(0) + *kernel_offset) | ((ulong) PRIM_TARGET_X << 44);
-    if (get_global_id(0) == 0) {
-        printf("global offset:\t\t\t\t\t %15llu\n", *kernel_offset);
-    }
 
     // precalculated RNG steps for the primary tree
     if ((((seed *     25214903917LU +              11LU) >> 44) & 15) !=  7) return;
