@@ -169,7 +169,7 @@ int main(int argc, char** argv) {
     d_results_aux_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_AUX_COUNT_LEN, NULL, &err);
     checkcl("results aux count create", err);
 
-    d_kernel_offset = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(kernel_offset), NULL, &err);
+    d_kernel_offset = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(kernel_offset), NULL, &err);
     checkcl("kernel offset create", err);
 
     // main kernel loop
