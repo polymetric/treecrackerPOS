@@ -37,10 +37,9 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
     if ((((seed * 118637304785629LU + 262259097190887LU) >> 47) &  1) !=  0) return;
     if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  0) return;
     if ((((seed * 120681609298497LU +  14307911880080LU) >> 47) &  1) !=  0) return;
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) %  5) ==  0) return;
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) % 10) ==  0) return;
-//    if ((((seed *  55986898099985LU +  49720483695876LU) >> 17) %  3) !=  2) return;
-    
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  5) ==  0) return;
+    if (((((seed * 233752471717045LU +  11718085204285LU) & 281474976710655LU) >> 17) % 10) ==  0) return;
+
     // if we make it past all those checks, save the seed
     // and increment the counter for the seeds we have found with the first
     // filter
@@ -64,12 +63,12 @@ uchar check_tree_aux_0(ulong seed) {
     // precalculated RNG steps for aux tree
     if ((((seed *  61282721086213LU +  25979478236433LU) >> 47) &  1) !=  1) return 0;
     if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
-    if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  1) return 0;
     if ((((seed * 127636996050457LU + 159894566279526LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
-//    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  2) return 0;
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  5) ==  0) return 0;
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) % 10) ==  0) return 0;
+    if (((((seed * 233752471717045LU +  11718085204285LU) & 281474976710655LU) >> 17) %  3) !=  2) return 0;
+
 
     return 1;
 }
@@ -82,8 +81,9 @@ uchar check_tree_aux_1(ulong seed) {
     if ((((seed * 177269950146317LU + 148267022728371LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  0) return 0;
     if ((((seed * 118637304785629LU + 262259097190887LU) >> 47) &  1) !=  0) return 0;
-    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) !=  0) return 0;
-  //  if ((((seed * 205749139540585LU +    277363943098LU) >> 17) %  3) !=  1) return 0;
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  5) !=  0) return 0;
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) !=  0) return 0;
+
 
     return 1;
 }
@@ -95,8 +95,9 @@ uchar check_tree_aux_2(ulong seed) {
     if ((((seed *  92070806603349LU +  65633894156837LU) >> 47) &  1) !=  1) return 0;
     if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  5) ==  0) return 0;
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) % 10) ==  0) return 0;
+
 
     return 1;
 }
@@ -104,9 +105,9 @@ uchar check_tree_aux_2(ulong seed) {
 uchar check_tree_aux_3(ulong seed) {
     // precalculated RNG steps for aux tree
     if ((((seed * 128954768138017LU + 137139456763464LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
- //   if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  0) return 0;
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  5) ==  0) return 0;
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) % 10) ==  0) return 0;
+
 
     return 1;
 }
@@ -118,10 +119,9 @@ uchar check_tree_aux_4(ulong seed) {
     if ((((seed *  19927021227657LU + 127911637363266LU) >> 47) &  1) !=  0) return 0;
     if ((((seed *  28158748839985LU + 233987836661708LU) >> 47) &  1) !=  0) return 0;
     if ((((seed * 127636996050457LU + 159894566279526LU) >> 47) &  1) !=  0) return 0;
-    if ((((seed *  12659659028133LU + 156526639281273LU) >> 47) &  1) !=  1) return 0;
-    if ((((seed *     25214903917LU +              11LU) >> 17) %  5) ==  0) return 0;
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 17) % 10) ==  0) return 0;
-//    if ((((seed * 233752471717045LU +  11718085204285LU) >> 17) %  3) !=  2) return 0;
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  5) ==  0) return 0;
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) % 10) ==  0) return 0;
+
 
     return 1;
 }
@@ -146,7 +146,7 @@ kernel void filter_aux(
     // we do this by reversing that seed by 220 steps, then
     // we just check all 440 seeds after that
     rev_220(seed);
-    
+
     // bit field for the trees that we find
     // the reason we use a bit field instead of a counter is so we can
     // check if a tree has already been found so we don't check it twice
@@ -161,7 +161,7 @@ kernel void filter_aux(
     for (int call_offset = 0; call_offset < TREE_CALL_RANGE * 2; call_offset++) {
         tree_x = (fwd_1(seed) >> 44) & 15; // nextInt(16)
         tree_z = (fwd_1(seed) >> 44) & 15; // nextInt(16)
-        
+
         check_tree(0, 13,  0);
         check_tree(1, 14,  7);
         check_tree(2,  8,  3);
