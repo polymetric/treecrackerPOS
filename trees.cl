@@ -14,7 +14,7 @@
 #define MASK ((1LU << 48) - 1)
 #define fwd_1(seed)   (seed = (seed *     25214903917LU +              11LU) & MASK)
 #define rev_1(seed)   (seed = (seed * 246154705703781LU + 107048004364969LU) & MASK)
-#define rev_220(seed) (seed = (seed * 111324522502033LU + 219393289811236LU) & MASK)
+#define rev_80(seed) (seed = (seed * 163871983396033LU + 154849057978416LU) & MASK)
 
 // this is the initial filter stage that narrows down the seedspace from
 // 2^44 to however many seeds can generate this tree
@@ -119,7 +119,7 @@ kernel void filter_aux(
     // tree seeds we found.
     // we do this by reversing that seed by 220 steps, then
     // we just check all 440 seeds after that
-    rev_220(seed);
+    rev_80(seed);
 
     // bit field for the trees that we find
     // the reason we use a bit field instead of a counter is so we can
