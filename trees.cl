@@ -33,7 +33,6 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
 	if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  0) return ;
 	if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) !=  0) return ;
 	if (((((seed * 233752471717045LU +  11718085204285LU) & 281474976710655LU) >> 17) %  3) !=  2) return ;
-	if (((((seed * 120950523281469LU + 102626409374399LU) & 281474976710655LU) >> 17) %  3) !=  2) return ;
 
     // if we make it past all those checks, save the seed
     // and increment the counter for the seeds we have found with the first
