@@ -29,12 +29,11 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
     ulong seed = (get_global_id(0) + *kernel_offset) | ((ulong) PRIM_TARGET_X << 44);
 
     // precalculated RNG steps for the primary tree
-	if ((((seed *     25214903917LU +              11LU) >> 44) & 15) != 13) return;
-	if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  0) return;
-	if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) !=  0) return;
-	if (((((seed * 233752471717045LU +  11718085204285LU) & 281474976710655LU) >> 17) %  3) !=  2) return;
-	if (((((seed * 120950523281469LU + 102626409374399LU) & 281474976710655LU) >> 17) %  3) !=  2) return;
-
+	if ((((seed *     25214903917LU +              11LU) >> 44) & 15) != 13) return ;
+	if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  0) return ;
+	if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) !=  0) return ;
+	if (((((seed * 233752471717045LU +  11718085204285LU) & 281474976710655LU) >> 17) %  3) !=  2) return ;
+	if (((((seed * 120950523281469LU + 102626409374399LU) & 281474976710655LU) >> 17) %  3) !=  2) return ;
 
     // if we make it past all those checks, save the seed
     // and increment the counter for the seeds we have found with the first
@@ -89,7 +88,6 @@ uchar check_tree_aux_2(ulong seed) {
 
 uchar check_tree_aux_3(ulong seed) {
     // precalculated RNG steps for aux tree
-	if ((((seed * 205749139540585LU +    277363943098LU) >> 46) &  3) !=  2) return 0;
 	if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0;
 	if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  0) return 0;
 	if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) ==  0) return 0;
