@@ -41,7 +41,7 @@
 
 void checkcl(const char *fn, int err) {
     if (err != CL_SUCCESS) {
-        fprintf(stderr, "%s error: %d\n", fn, err); 
+        fprintf(stderr, "%s error: %d\n", fn, err);
         fflush(stdout);
         fflush(stderr);
         exit(-1);
@@ -69,8 +69,8 @@ int main(int argc, char** argv) {
     fread(source_str, 1, source_size, source_file);
     fclose(source_file);
 
-	// cl variables
-	int err;
+    // cl variables
+    int err;
 
     cl_uint num_platforms;
     cl_platform_id platform;
@@ -81,11 +81,11 @@ int main(int argc, char** argv) {
     cl_program program;
     cl_kernel kernel_prim;
     cl_kernel kernel_aux;
-    
+
     // host & device memory objects for
     // primary filter results
     cl_mem d_results_prim;
-//    uint64_t *results_prim = malloc(RESULTS_PRIM_LEN); 
+//    uint64_t *results_prim = malloc(RESULTS_PRIM_LEN);
     // number of primary filter results
     cl_mem d_results_prim_count;
     uint32_t results_prim_count;
@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
         fclose(progress_file);
         remove("progress");
     }
-    
+
     if (restored) {
         results_file = fopen(RESULTS_FILE_PATH, "ab");
     } else if (fopen(RESULTS_FILE_PATH, "r") != NULL) {
@@ -209,9 +209,9 @@ int main(int argc, char** argv) {
         ));
 
         // wait for primary kernel to finish
-		checkcl("clFlush", clFlush(queue));
+        checkcl("clFlush", clFlush(queue));
         checkcl("clFinish prim kernel queue", clFinish(queue));
-        
+
         // read results count
         // TODO figure out why tf this segfaults
         // i just moved it to below the wait for the kernel to finish calls
@@ -246,7 +246,7 @@ int main(int argc, char** argv) {
                     NULL,                   // event wait list
                     NULL                    // event
             ));
-            
+
             // read aux results count
             checkcl("clEnqueueReadBuffer queue read aux results count", clEnqueueReadBuffer(queue, d_results_aux_count, CL_FALSE, 0, RESULTS_AUX_COUNT_LEN, &results_aux_count, 0, NULL, NULL));
 
@@ -310,4 +310,4 @@ int main(int argc, char** argv) {
 
     fflush(stdout);
     exit(0);
-} 
+}
