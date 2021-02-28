@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     int restored = 0;
     if (progress_file != NULL) {
         restored = 1;
-        fread(&kernel_offset, sizeof(uint64_t), 1, progress_file);
+        fread(&kernel_offset, sizeof(kernel_offset), 1, progress_file);
         fclose(progress_file);
         remove("progress");
     }
@@ -222,13 +222,12 @@ int main(int argc, char** argv) {
         // measure primary kernel time
         double kernel_prim_time = (nanos() - time_last) / 1e9;
         printf("primary kernel batch took %.6f\n", kernel_prim_time);
-        time_last = nanos();
 
         printf("got %8u results from primary batch\n", results_prim_count);
 
         // run the aux kernel only if we got results from the initial filter
         if (results_prim_count > 0) {
-            // and queue the auxiliary filter kernel
+            time_last = nanos();
             checkcl("kernel arg set 0", clSetKernelArg(kernel_aux, 0, sizeof(d_results_prim), &d_results_prim));
             checkcl("kernel arg set 1", clSetKernelArg(kernel_aux, 1, sizeof(d_results_prim_count), &d_results_prim_count));
             checkcl("kernel arg set 2", clSetKernelArg(kernel_aux, 2, sizeof(d_results_aux), &d_results_aux));
@@ -247,9 +246,6 @@ int main(int argc, char** argv) {
                     NULL                    // event
             ));
 
-            // read aux results count
-            checkcl("clEnqueueReadBuffer queue read aux results count", clEnqueueReadBuffer(queue, d_results_aux_count, CL_FALSE, 0, RESULTS_AUX_COUNT_LEN, &results_aux_count, 0, NULL, NULL));
-
             // wait for aux kernel to finish
             checkcl("clFlush", clFlush(queue));
             checkcl("clFinish aux kernel queue", clFinish(queue));
@@ -258,6 +254,9 @@ int main(int argc, char** argv) {
             double kernel_aux_time = (nanos() - time_last) / 1e9;
             printf("aux kernel batch took %.6f\n", kernel_aux_time);
             time_last = nanos();
+
+            // read aux results count
+            checkcl("clEnqueueReadBuffer queue read aux results count", clEnqueueReadBuffer(queue, d_results_aux_count, CL_TRUE, 0, sizeof(results_aux_count), &results_aux_count, 0, NULL, NULL));
 
             printf("got %8u results from aux batch\n", results_aux_count);
 
@@ -296,6 +295,7 @@ int main(int argc, char** argv) {
 
         // write progress in case we crash or cancel
         fwrite(&kernel_offset, sizeof(kernel_offset), 1, progress_file);
+        rewind(progress_file);
         fflush(progress_file);
     }
 
