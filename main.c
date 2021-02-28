@@ -159,14 +159,14 @@ int main(int argc, char** argv) {
     checkcl("clCreateKernel aux", err);
 
     // create buffer for primary results
-    d_results_prim = clCreateBuffer(context, CL_MEM_READ_WRITE, RESULTS_PRIM_LEN, NULL, &err);
+    d_results_prim = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_PRIM_LEN, NULL, &err);
     checkcl("results prim create", err);
-    d_results_prim_count = clCreateBuffer(context, CL_MEM_READ_WRITE, RESULTS_PRIM_COUNT_LEN, NULL, &err);
+    d_results_prim_count = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(results_prim_count), NULL, &err);
     checkcl("results prim count create", err);
     // and aux
     d_results_aux = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_AUX_LEN, NULL, &err);
     checkcl("results aux create", err);
-    d_results_aux_count = clCreateBuffer(context, CL_MEM_WRITE_ONLY, RESULTS_AUX_COUNT_LEN, NULL, &err);
+    d_results_aux_count = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(results_aux_count), NULL, &err);
     checkcl("results aux count create", err);
 
     d_kernel_offset = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(kernel_offset), NULL, &err);
@@ -186,8 +186,8 @@ int main(int argc, char** argv) {
         // zero out counters
         results_prim_count = 0;
         results_aux_count = 0;
-        checkcl("reset prim counter", clEnqueueWriteBuffer(queue, d_results_prim_count, CL_TRUE, 0, RESULTS_PRIM_COUNT_LEN, &results_prim_count, 0, NULL, NULL));
-        checkcl("reset aux counter", clEnqueueWriteBuffer(queue, d_results_aux_count, CL_TRUE, 0, RESULTS_AUX_COUNT_LEN, &results_aux_count, 0, NULL, NULL));
+        checkcl("reset prim counter", clEnqueueWriteBuffer(queue, d_results_prim_count, CL_TRUE, 0, sizeof(results_prim_count), &results_prim_count, 0, NULL, NULL));
+        checkcl("reset aux counter", clEnqueueWriteBuffer(queue, d_results_aux_count, CL_TRUE, 0, sizeof(results_aux_count), &results_aux_count, 0, NULL, NULL));
         checkcl("write kernel offset", clEnqueueWriteBuffer(queue, d_kernel_offset, CL_TRUE, 0, sizeof(kernel_offset), &kernel_offset, 0, NULL, NULL));
 
         // queue the primary filter kernel for execution
@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
         // i just moved it to below the wait for the kernel to finish calls
         // it might have been because of that, we'll see - it hasn't happened in
         // a while
-        checkcl("clEnqueueReadBuffer queue read prim results count", clEnqueueReadBuffer(queue, d_results_prim_count, CL_TRUE, 0, RESULTS_PRIM_COUNT_LEN, &results_prim_count, 0, NULL, NULL));
+        checkcl("clEnqueueReadBuffer queue read prim results count", clEnqueueReadBuffer(queue, d_results_prim_count, CL_TRUE, 0, sizeof(results_prim_count), &results_prim_count, 0, NULL, NULL));
 
         // measure primary kernel time
         double kernel_prim_time = (nanos() - time_last) / 1e9;
@@ -275,7 +275,9 @@ int main(int argc, char** argv) {
             total_results += results_aux_count;
             for (size_t i = 0; i < results_aux_count; i++) {
                 uint64_t result = results_aux[i];
+                // binary write
 //                fwrite(&result, sizeof(uint64_t), 1, results_file);
+                // string write
                 fprintf(results_file, "%llu\n", result);
             }
             fflush(results_file);
