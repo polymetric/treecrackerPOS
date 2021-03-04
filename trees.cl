@@ -29,12 +29,12 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
     ulong seed = (get_global_id(0) + *kernel_offset) | ((ulong) PRIM_TARGET_X << 44);
 
     // precalculated RNG steps for the primary tree
-    if ((((seed *     25214903917LU +              11LU) >> 44) & 15) !=  0) return ; // pos Z
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 46) &  3) !=  3) return ; // height
-    if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  1) return ; // base height
-    if ((((seed *  76790647859193LU +  25707281917278LU) >> 47) &  1) !=  0) return ; // initial radius
-    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) ==  0) return ; // type
-
+    // tree 0
+    if ((((seed *     25214903917LU +              11LU) >> 44) & 15) != 13) return ; // pos Z
+    if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  0) return ; // base height
+    if ((((seed * 120950523281469LU + 102626409374399LU) >> 46) &  3)  <  1) return ; // radius > 1
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) !=  0) return ; // type
+    if (((((seed * 233752471717045LU +  11718085204285LU) & 281474976710655LU) >> 17) %  5) !=  2) return ; // height
 
     // if we make it past all those checks, save the seed
     // and increment the counter for the seeds we have found with the first
@@ -57,7 +57,8 @@ kernel void filter_prim(global ulong *kernel_offset, global ulong *results_prim,
 
 uchar check_tree_aux_0(ulong seed, ulong iseed) {
     // precalculated RNG steps for aux tree
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  1) return 0; // base height
+    // tree 1
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0; // base height
     if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) ==  0) return 0; // type
 
     return 1;
@@ -65,9 +66,10 @@ uchar check_tree_aux_0(ulong seed, ulong iseed) {
 
 uchar check_tree_aux_1(ulong seed, ulong iseed) {
     // precalculated RNG steps for aux tree
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 46) &  3) !=  0) return 0; // height
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0; // base height
-    if ((((seed * 120950523281469LU + 102626409374399LU) >> 47) &  1) !=  1) return 0; // initial radius
+    // tree 2
+    if ((((seed * 205749139540585LU +    277363943098LU) >> 46) &  3) !=  2) return 0; // height
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  1) return 0; // base height
+    if ((((seed * 120950523281469LU + 102626409374399LU) >> 47) &  1) !=  0) return 0; // initial radius
     if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) ==  0) return 0; // type
 
     return 1;
@@ -75,18 +77,19 @@ uchar check_tree_aux_1(ulong seed, ulong iseed) {
 
 uchar check_tree_aux_2(ulong seed, ulong iseed) {
     // precalculated RNG steps for aux tree
-    if ((((seed * 205749139540585LU +    277363943098LU) >> 46) &  3) !=  0) return 0; // height
-    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0; // base height
-    if ((((seed * 120950523281469LU + 102626409374399LU) >> 47) &  1) !=  1) return 0; // initial radius
-    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) ==  0) return 0; // type
+    // tree 3
+    if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  1) return 0; // base height
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) !=  0) return 0; // type
+    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  5) !=  3) return 0; // height
+    if (((((seed *  55986898099985LU +  49720483695876LU) & 281474976710655LU) >> 17) %  5) !=  0) return 0; // radius == 1
 
     return 1;
 }
 
 uchar check_tree_aux_3(ulong seed, ulong iseed) {
     // precalculated RNG steps for aux tree
+    // tree 4
     if ((((seed * 233752471717045LU +  11718085204285LU) >> 47) &  1) !=  0) return 0; // base height
-    // if ((((seed *  55986898099985LU +  49720483695876LU) >> 47) &  1) !=  0) return 0; // radius
     if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) ==  0) return 0; // type
 
     return 1;
@@ -94,7 +97,8 @@ uchar check_tree_aux_3(ulong seed, ulong iseed) {
 
 uchar check_tree_aux_4(ulong seed, ulong iseed) {
     // precalculated RNG steps for aux tree
-    if (((((seed * 205749139540585LU +    277363943098LU) & 281474976710655LU) >> 17) %  3) ==  0) return -; // type
+    // tree 5
+    if (((((seed *     25214903917LU +              11LU) & 281474976710655LU) >> 17) %  3) !=  0) return 0; // type
 
     return 1;
 }
@@ -145,10 +149,8 @@ kernel void filter_aux(
         rev_1(seed);
     }
 
-
-
     // if all the flags are set, we found a very good candidate seed
     if (tree_flags == TARGET_TREE_FLAGS) {
-        results_aux[atomic_inc(results_aux_count)] = results_prim[get_global_id(0)];
+        results_aux[atomic_inc(results_aux_count)] = iseed;
     }
 }
